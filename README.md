@@ -31,12 +31,19 @@ Implemented in this repository:
 - normalized action vocabulary and configurable action-to-key mapping model
 - tests for profile matching, scoring, event vocabulary, mapping, and raw report classification
 
-Explicitly not implemented in Milestone 1:
+Milestone 2 adds:
 
-- speculative raw button label mappings
+- active BlueZ GATT button notifications from the Siri Remote report characteristic
+- raw report decoding to normalized actions
+- default kiosk/browser key mapping in `mappings/kiosk-browser.json`
+- Linux uinput output through `python-evdev`
+- print-only runtime output for safe SSH testing before injecting real input
+- systemd installer templates for kiosk deployment
+
+Still not implemented:
+
+- speculative gesture behavior
 - decoded touch gestures
-- uinput event emission
-- systemd installation
 - udev rules or persistent host Bluetooth changes
 - web UI
 - KousenTV or Command Center integration
@@ -55,14 +62,13 @@ Known model signals:
 - HID service: `00001812-0000-1000-8000-00805f9b34fb`
 - Vendor service observed: `8341f2b4-c013-4f04-8197-c4cdb42e26dc`
 
-The previously tested physical unit used address `E0:C3:EA:A1:88:77`. That address identifies one remote, not the model. Device profiles match hardware family characteristics; physical devices are separate instances.
+One previously tested physical unit had a stable public Bluetooth address. That address identifies one remote, not the model. Device profiles match hardware family characteristics; physical devices are separate instances.
 
 Known raw report observations:
 
 - button notifications were observed as two-byte values
 - `0000` behaved as release/neutral
-- observed nonzero button values were `0100`, `0200`, `0400`, `1000`, `2000`, `4000`, `8000`, and `0001`
-- the surviving transcript does not establish trustworthy physical button labels for those values
+- active GATT capture labeled navigation, select, back, home, media, volume, power, and Siri/Mic button values
 - touch traffic was observed but not decoded
 
 ## Architecture
@@ -125,26 +131,50 @@ kousen-remote devices --all
 Inspect one device:
 
 ```bash
-kousen-remote info E0:C3:EA:A1:88:77
+kousen-remote info XX:XX:XX:XX:XX:XX
 ```
 
 Inspect paired-device GATT layout:
 
 ```bash
-kousen-remote gatt E0:C3:EA:A1:88:77
+kousen-remote gatt XX:XX:XX:XX:XX:XX
 ```
 
 Read HID report-reference descriptors:
 
 ```bash
-kousen-remote gatt-read E0:C3:EA:A1:88:77 desc003b
+kousen-remote gatt-read XX:XX:XX:XX:XX:XX desc003b
 ```
 
 Actively subscribe to a report characteristic:
 
 ```bash
-kousen-remote gatt-notify E0:C3:EA:A1:88:77 char0038
+kousen-remote gatt-notify XX:XX:XX:XX:XX:XX char0038
 ```
+
+Run the daemon path in print-only mode:
+
+```bash
+kousen-remote run --output print --mapping mappings/kiosk-browser.json XX:XX:XX:XX:XX:XX
+```
+
+Run the daemon path with Linux uinput output:
+
+```bash
+sudo ~/kousen-remote/.venv/bin/kousen-remote run --mapping mappings/kiosk-browser.json XX:XX:XX:XX:XX:XX
+```
+
+The uinput mode creates a virtual keyboard/media device named `kousen-remote`. Applications receive normal Linux key events.
+
+The runtime reconnects by default. If the remote is asleep when the service starts, it will retry connection/GATT subscription until the remote wakes.
+
+Install as a systemd service:
+
+```bash
+sudo packaging/systemd/install-systemd.sh --device XX:XX:XX:XX:XX:XX
+```
+
+See [docs/systemd.md](docs/systemd.md) before running the installer; it lists the system paths and packages touched.
 
 Pair, trust, and connect:
 
@@ -198,6 +228,30 @@ Use `scan`, `info`, `hidraw`, and `test` to answer:
 
 See [docs/reference-repos.md](docs/reference-repos.md) for notes on external Apple TV/Siri Remote projects and which parts are relevant to this Linux hardware-input service.
 
+## Development Notes
+
+See [docs/development-notes.md](docs/development-notes.md) for lessons learned, button mappings, Power-button handling, touch/gesture roadmap, and future Command Center/KousenTV integration notes.
+
 ## Relationship To KousenTV And Kiosk Work
 
 `kousen-remote` should eventually run as its own lightweight service on the kiosk. KousenTV, Chromium, VLC, and other applications should see standard input events. Command Center may later manage pairing/testing/configuration, but it must not be required for remote input to function.
+
+Default kiosk/browser mapping:
+
+```text
+NAV_UP        -> KEY_UP
+NAV_DOWN      -> KEY_DOWN
+NAV_LEFT      -> KEY_LEFT
+NAV_RIGHT     -> KEY_RIGHT
+SELECT        -> KEY_ENTER
+BACK          -> KEY_ESC
+HOME          -> KEY_HOME
+PLAY_PAUSE    -> KEY_SPACE
+VOLUME_UP     -> KEY_VOLUMEUP
+VOLUME_DOWN   -> KEY_VOLUMEDOWN
+MUTE          -> KEY_MUTE
+POWER         -> unmapped by default
+SIRI          -> KEY_F13
+```
+
+`POWER` is intentionally unmapped in the kiosk/browser profile because emitting `KEY_POWER` can trigger the host OS power-button behavior.

@@ -20,21 +20,21 @@ class ProfileMatchingTests(unittest.TestCase):
         device = DeviceRecord.from_bluez_properties(
             "/org/bluez/hci0/dev_E0_C3_EA_A1_88_77",
             {
-                "Address": Variant("E0:C3:EA:A1:88:77"),
+                "Address": Variant("AA:BB:CC:DD:EE:FF"),
                 "UUIDs": Variant([HID_SERVICE_UUID.upper()]),
                 "ManufacturerData": Variant({0x004C: Variant([1, 2, 3])}),
                 "Appearance": Variant(0x03C0),
             },
         )
 
-        self.assertEqual(device.address, "E0:C3:EA:A1:88:77")
+        self.assertEqual(device.address, "AA:BB:CC:DD:EE:FF")
         self.assertEqual(device.manufacturer_data[0x004C], b"\x01\x02\x03")
         self.assertIn(HID_SERVICE_UUID, device.uuids)
 
     def test_known_remote_profile_scores_high(self) -> None:
         profile = load_profile(PROFILE)
         device = DeviceRecord(
-            address="E0:C3:EA:A1:88:77",
+            address="AA:BB:CC:DD:EE:FF",
             address_type="public",
             uuids=(HID_SERVICE_UUID,),
             manufacturer_data={0x004C: bytes.fromhex("07 0d 02 15 03 02 e0 c3 ea a1 88 77 4e 50 4e")},
@@ -48,7 +48,7 @@ class ProfileMatchingTests(unittest.TestCase):
         self.assertTrue(match.plausible)
         self.assertGreaterEqual(match.score, 100)
         self.assertIn("vendor/product 004c:0315", match.matched)
-        self.assertNotIn("E0:C3:EA:A1:88:77", " ".join(match.matched))
+        self.assertNotIn("AA:BB:CC:DD:EE:FF", " ".join(match.matched))
 
     def test_advertisement_only_candidate_is_plausible(self) -> None:
         profile = load_profile(PROFILE)

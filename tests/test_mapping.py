@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from kousen_remote.mapping import MappingConfig, NormalizedAction, RichEventType
+from kousen_remote.mapping import MappingConfig, NormalizedAction, RichEventType, load_mapping
 
 
 class MappingTests(unittest.TestCase):
@@ -34,6 +35,15 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(mapping.key_for(NormalizedAction.NAV_UP), "KEY_UP")
         self.assertEqual(mapping.key_for(NormalizedAction.SELECT), "KEY_ENTER")
+        self.assertEqual(mapping.key_for(NormalizedAction.BACK), "KEY_ESC")
+        self.assertEqual(mapping.key_for(NormalizedAction.SIRI), "KEY_F13")
+        self.assertIsNone(mapping.key_for(NormalizedAction.POWER))
+
+    def test_checked_in_kiosk_mapping_loads(self) -> None:
+        mapping = load_mapping(Path("mappings/kiosk-browser.json"))
+
+        self.assertEqual(mapping.key_for(NormalizedAction.PLAY_PAUSE), "KEY_SPACE")
+        self.assertEqual(mapping.key_for(NormalizedAction.VOLUME_UP), "KEY_VOLUMEUP")
         self.assertIsNone(mapping.key_for(NormalizedAction.POWER))
 
 

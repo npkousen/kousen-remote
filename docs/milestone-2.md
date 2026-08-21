@@ -14,6 +14,25 @@ The next milestone should turn verified raw reports into normal Linux input.
 - add systemd unit files without installing them automatically
 - document required group/udev permissions for `/dev/uinput` and any diagnostic `hidraw` access
 
+## Current status
+
+Implemented:
+
+- active GATT notification capture for the observed button report characteristic
+- labeled Remote #1 button map, including Mic/Siri as `SIRI`
+- normalized action dispatch
+- print-only output for safe testing
+- uinput output through `python-evdev`
+- default kiosk/browser mapping file
+- systemd unit and default environment-file templates
+- reconnect/backoff behavior for sleeping or disconnected remotes
+
+Remaining:
+
+- validate Remote #2 uses the same profile map
+- decide reviewed udev/group policy for `/dev/uinput`
+- decode touch gestures
+
 ## Non-goals
 
 - web management UI

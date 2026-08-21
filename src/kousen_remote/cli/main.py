@@ -20,9 +20,10 @@ from kousen_remote.discovery.bluez import (
 )
 from kousen_remote.discovery.scoring import rank_candidates
 from kousen_remote.drivers.apple_siri_remote_3 import classify_button_payload
+from kousen_remote.mapping import MappingConfig, load_mapping
 from kousen_remote.model import DeviceRecord
 from kousen_remote.profiles import DeviceProfile, load_profiles
-from kousen_remote.service.runtime import run_service
+from kousen_remote.service.runtime import DEFAULT_BUTTON_CHARACTERISTIC, RuntimeConfig, run_service
 
 
 DEFAULT_PROFILE_DIR = Path("profiles")
@@ -298,12 +299,20 @@ def cmd_btmon_test(args: argparse.Namespace) -> int:
         return 13
 
 
-def cmd_run(_args: argparse.Namespace) -> int:
-    try:
-        return run_service()
-    except NotImplementedError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+def cmd_run(args: argparse.Namespace) -> int:
+    mapping = load_mapping(args.mapping) if args.mapping else MappingConfig.default()
+    return run_service(
+        RuntimeConfig(
+            device=args.device,
+            button_characteristic=args.button_characteristic,
+            output=args.output,
+            mapping=mapping,
+            timeout=args.timeout,
+            reconnect=not args.no_reconnect,
+            reconnect_delay=args.reconnect_delay,
+            max_reconnect_delay=args.max_reconnect_delay,
+        )
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -376,7 +385,15 @@ def build_parser() -> argparse.ArgumentParser:
     btmon_test.add_argument("--buttons-only", action="store_true", help="suppress touch/vendor diagnostic reports")
     btmon_test.set_defaults(func=cmd_btmon_test)
 
-    run = subparsers.add_parser("run", help="run the daemon runtime (planned for Milestone 2)")
+    run = subparsers.add_parser("run", help="run the daemon runtime")
+    run.add_argument("device", help="Bluetooth address or BlueZ object path")
+    run.add_argument("--button-characteristic", default=DEFAULT_BUTTON_CHARACTERISTIC)
+    run.add_argument("--mapping", type=Path, help="JSON mapping config")
+    run.add_argument("--output", choices=["uinput", "print"], default="uinput")
+    run.add_argument("--timeout", type=float)
+    run.add_argument("--no-reconnect", action="store_true", help="exit instead of retrying when the remote is unavailable")
+    run.add_argument("--reconnect-delay", type=float, default=2.0, help="initial reconnect retry delay in seconds")
+    run.add_argument("--max-reconnect-delay", type=float, default=30.0, help="maximum reconnect retry delay in seconds")
     run.set_defaults(func=cmd_run)
 
     return parser

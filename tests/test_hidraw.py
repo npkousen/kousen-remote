@@ -17,7 +17,7 @@ class HidrawInspectionTests(unittest.TestCase):
             device_dir.mkdir(parents=True)
             dev_root.mkdir()
             (device_dir / "uevent").write_text("HID_ID=0005:004C:0315\n", encoding="utf-8")
-            (device_dir / "name").write_text("C08RKX432330\n", encoding="utf-8")
+            (device_dir / "name").write_text("Example Siri Remote\n", encoding="utf-8")
 
             devices = find_hidraw_devices(vendor_id="004c", product_id="0315", sys_root=sys_root, dev_root=dev_root)
 

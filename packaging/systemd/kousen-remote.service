@@ -5,7 +5,8 @@ Wants=bluetooth.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/kousen-remote run
+EnvironmentFile=/etc/default/kousen-remote
+ExecStart=/opt/kousen-remote/.venv/bin/kousen-remote run --mapping ${KOUSEN_REMOTE_MAPPING} --reconnect-delay ${KOUSEN_REMOTE_RECONNECT_DELAY} --max-reconnect-delay ${KOUSEN_REMOTE_MAX_RECONNECT_DELAY} ${KOUSEN_REMOTE_DEVICE}
 Restart=on-failure
 RestartSec=2
 

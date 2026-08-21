@@ -139,6 +139,22 @@ class BlueZClient:
             await device.call_connect()
         return (await self.find_device(ref.path)).record
 
+    async def connect_device(self, address_or_path: str) -> DeviceRecord:
+        ref = await self.find_device(address_or_path)
+        if ref.record.connected:
+            return ref.record
+        if self._bus is None:
+            await self.connect()
+        introspection = await self._bus.introspect(BLUEZ_SERVICE, ref.path)
+        device_object = self._bus.get_proxy_object(BLUEZ_SERVICE, ref.path, introspection)
+        device = device_object.get_interface(DEVICE_IFACE)
+        try:
+            await device.call_connect()
+        except Exception as exc:
+            if "AlreadyConnected" not in str(exc):
+                raise BlueZUnavailable(f"Could not connect to {address_or_path}: {exc}") from exc
+        return (await self.find_device(ref.path)).record
+
     async def gatt_objects(self, address_or_path: str) -> list[GattObject]:
         ref = await self.find_device(address_or_path)
         objects = await self.managed_objects()
@@ -255,18 +271,25 @@ class BlueZClient:
             queue.put_nowait(GattNotification(path=path, value=bytes(value)))
 
         properties.on_properties_changed(on_properties_changed)
-        await characteristic.call_start_notify()
+        started = False
         try:
+            await characteristic.call_start_notify()
+            started = True
             if seconds is None:
                 while True:
                     await asyncio.sleep(3600)
             else:
                 await asyncio.sleep(seconds)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise BlueZUnavailable(f"GATT notification failed for {path}: {exc}") from exc
         finally:
-            try:
-                await characteristic.call_stop_notify()
-            except Exception:
-                pass
+            if started:
+                try:
+                    await characteristic.call_stop_notify()
+                except Exception:
+                    pass
 
 
 def scan_blocking(seconds: float, *, hid_only: bool = True) -> list[DeviceRecord]:
@@ -279,6 +302,10 @@ def devices_blocking() -> list[DeviceRecord]:
 
 def pair_blocking(address_or_path: str, *, trust: bool = True, connect: bool = True) -> DeviceRecord:
     return asyncio.run(BlueZClient().pair(address_or_path, trust=trust, connect=connect))
+
+
+def connect_device_blocking(address_or_path: str) -> DeviceRecord:
+    return asyncio.run(BlueZClient().connect_device(address_or_path))
 
 
 def gatt_objects_blocking(address_or_path: str) -> list[GattObject]:

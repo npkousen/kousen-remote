@@ -14,10 +14,12 @@ DEFAULT_KEY_MAPPING: dict[NormalizedAction, str] = {
     NormalizedAction.NAV_RIGHT: "KEY_RIGHT",
     NormalizedAction.SELECT: "KEY_ENTER",
     NormalizedAction.BACK: "KEY_ESC",
-    NormalizedAction.PLAY_PAUSE: "KEY_PLAYPAUSE",
+    NormalizedAction.HOME: "KEY_HOME",
+    NormalizedAction.PLAY_PAUSE: "KEY_SPACE",
     NormalizedAction.VOLUME_UP: "KEY_VOLUMEUP",
     NormalizedAction.VOLUME_DOWN: "KEY_VOLUMEDOWN",
     NormalizedAction.MUTE: "KEY_MUTE",
+    NormalizedAction.SIRI: "KEY_F13",
 }
 
 

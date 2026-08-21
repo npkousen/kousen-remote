@@ -1,0 +1,8 @@
+# Bluetooth address or BlueZ object path for the paired remote.
+KOUSEN_REMOTE_DEVICE=XX:XX:XX:XX:XX:XX
+
+# Mapping file installed with the package or copied manually.
+KOUSEN_REMOTE_MAPPING=/opt/kousen-remote/mappings/kiosk-browser.json
+
+KOUSEN_REMOTE_RECONNECT_DELAY=2
+KOUSEN_REMOTE_MAX_RECONNECT_DELAY=30

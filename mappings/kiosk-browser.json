@@ -1,0 +1,17 @@
+{
+  "name": "kiosk-browser",
+  "actions_to_keys": {
+    "NAV_UP": "KEY_UP",
+    "NAV_DOWN": "KEY_DOWN",
+    "NAV_LEFT": "KEY_LEFT",
+    "NAV_RIGHT": "KEY_RIGHT",
+    "SELECT": "KEY_ENTER",
+    "BACK": "KEY_ESC",
+    "HOME": "KEY_HOME",
+    "PLAY_PAUSE": "KEY_SPACE",
+    "VOLUME_UP": "KEY_VOLUMEUP",
+    "VOLUME_DOWN": "KEY_VOLUMEDOWN",
+    "MUTE": "KEY_MUTE",
+    "SIRI": "KEY_F13"
+  }
+}
