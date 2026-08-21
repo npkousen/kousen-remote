@@ -16,6 +16,7 @@ class NormalizedAction(str, Enum):
     VOLUME_DOWN = "VOLUME_DOWN"
     MUTE = "MUTE"
     POWER = "POWER"
+    SIRI = "SIRI"
 
 
 class RichEventType(str, Enum):

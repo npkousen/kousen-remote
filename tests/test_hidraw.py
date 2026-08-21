@@ -26,6 +26,22 @@ class HidrawInspectionTests(unittest.TestCase):
             self.assertEqual(devices[0].vendor_id, "004c")
             self.assertEqual(devices[0].product_id, "0315")
 
+    def test_finds_padded_linux_hid_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sys_root = root / "sys" / "class" / "hidraw"
+            dev_root = root / "dev"
+            device_dir = sys_root / "hidraw4" / "device"
+            device_dir.mkdir(parents=True)
+            dev_root.mkdir()
+            (device_dir / "uevent").write_text("HID_ID=0005:000004C:00000315\n", encoding="utf-8")
+
+            devices = find_hidraw_devices(vendor_id="004c", product_id="0315", sys_root=sys_root, dev_root=dev_root)
+
+            self.assertEqual(len(devices), 1)
+            self.assertEqual(devices[0].vendor_id, "004c")
+            self.assertEqual(devices[0].product_id, "0315")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,12 +4,15 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from kousen_remote.model import HID_SERVICE_UUID, DeviceRecord
+from kousen_remote.model import HID_SERVICE_UUID, DeviceRecord, unwrap_variant
 
 
 BLUEZ_SERVICE = "org.bluez"
 ADAPTER_IFACE = "org.bluez.Adapter1"
 DEVICE_IFACE = "org.bluez.Device1"
+GATT_SERVICE_IFACE = "org.bluez.GattService1"
+GATT_CHARACTERISTIC_IFACE = "org.bluez.GattCharacteristic1"
+GATT_DESCRIPTOR_IFACE = "org.bluez.GattDescriptor1"
 PROPERTIES_IFACE = "org.freedesktop.DBus.Properties"
 OBJECT_MANAGER_IFACE = "org.freedesktop.DBus.ObjectManager"
 
@@ -22,6 +25,23 @@ class BlueZUnavailable(RuntimeError):
 class BlueZDeviceRef:
     path: str
     record: DeviceRecord
+
+
+@dataclass(frozen=True)
+class GattObject:
+    path: str
+    kind: str
+    uuid: str | None
+    flags: tuple[str, ...] = ()
+    service: str | None = None
+    characteristic: str | None = None
+    notifying: bool | None = None
+
+
+@dataclass(frozen=True)
+class GattNotification:
+    path: str
+    value: bytes
 
 
 def _load_dbus_next() -> tuple[Any, Any, Any]:
@@ -119,6 +139,135 @@ class BlueZClient:
             await device.call_connect()
         return (await self.find_device(ref.path)).record
 
+    async def gatt_objects(self, address_or_path: str) -> list[GattObject]:
+        ref = await self.find_device(address_or_path)
+        objects = await self.managed_objects()
+        gatt_objects: list[GattObject] = []
+        for path, interfaces in objects.items():
+            if not path.startswith(ref.path + "/"):
+                continue
+
+            service = interfaces.get(GATT_SERVICE_IFACE)
+            if service is not None:
+                uuid = unwrap_variant(service.get("UUID"))
+                gatt_objects.append(
+                    GattObject(
+                        path=path,
+                        kind="service",
+                        uuid=str(uuid) if uuid is not None else None,
+                    )
+                )
+
+            characteristic = interfaces.get(GATT_CHARACTERISTIC_IFACE)
+            if characteristic is not None:
+                uuid = unwrap_variant(characteristic.get("UUID"))
+                flags = unwrap_variant(characteristic.get("Flags")) or ()
+                service_path = unwrap_variant(characteristic.get("Service"))
+                notifying = unwrap_variant(characteristic.get("Notifying"))
+                gatt_objects.append(
+                    GattObject(
+                        path=path,
+                        kind="characteristic",
+                        uuid=str(uuid) if uuid is not None else None,
+                        flags=tuple(str(flag) for flag in flags),
+                        service=str(service_path) if service_path is not None else None,
+                        notifying=bool(notifying) if notifying is not None else None,
+                    )
+                )
+
+            descriptor = interfaces.get(GATT_DESCRIPTOR_IFACE)
+            if descriptor is not None:
+                uuid = unwrap_variant(descriptor.get("UUID"))
+                flags = unwrap_variant(descriptor.get("Flags")) or ()
+                characteristic_path = unwrap_variant(descriptor.get("Characteristic"))
+                gatt_objects.append(
+                    GattObject(
+                        path=path,
+                        kind="descriptor",
+                        uuid=str(uuid) if uuid is not None else None,
+                        flags=tuple(str(flag) for flag in flags),
+                        characteristic=str(characteristic_path) if characteristic_path is not None else None,
+                    )
+                )
+        return sorted(gatt_objects, key=lambda item: item.path)
+
+    async def resolve_gatt_path(self, address_or_path: str, target: str) -> str:
+        if target.startswith("/"):
+            return target
+        ref = await self.find_device(address_or_path)
+        objects = await self.managed_objects()
+        suffix = "/" + target
+        matches = [
+            path
+            for path, interfaces in objects.items()
+            if path.startswith(ref.path + "/")
+            and path.endswith(suffix)
+            and (GATT_CHARACTERISTIC_IFACE in interfaces or GATT_DESCRIPTOR_IFACE in interfaces)
+        ]
+        if not matches:
+            raise BlueZUnavailable(f"GATT target not found for {address_or_path}: {target}")
+        if len(matches) > 1:
+            raise BlueZUnavailable(f"GATT target is ambiguous for {address_or_path}: {target}")
+        return matches[0]
+
+    async def _gatt_proxy(self, path: str) -> tuple[Any, Any, str]:
+        if self._bus is None:
+            await self.connect()
+        introspection = await self._bus.introspect(BLUEZ_SERVICE, path)
+        proxy_object = self._bus.get_proxy_object(BLUEZ_SERVICE, path, introspection)
+        objects = await self.managed_objects()
+        interfaces = objects.get(path, {})
+        if GATT_CHARACTERISTIC_IFACE in interfaces:
+            return proxy_object, proxy_object.get_interface(GATT_CHARACTERISTIC_IFACE), GATT_CHARACTERISTIC_IFACE
+        if GATT_DESCRIPTOR_IFACE in interfaces:
+            return proxy_object, proxy_object.get_interface(GATT_DESCRIPTOR_IFACE), GATT_DESCRIPTOR_IFACE
+        raise BlueZUnavailable(f"Not a GATT characteristic or descriptor: {path}")
+
+    async def read_gatt(self, address_or_path: str, target: str) -> tuple[str, bytes]:
+        path = await self.resolve_gatt_path(address_or_path, target)
+        _proxy_object, iface, _iface_name = await self._gatt_proxy(path)
+        value = await iface.call_read_value({})
+        return path, bytes(value)
+
+    async def write_gatt(self, address_or_path: str, target: str, value: bytes) -> str:
+        path = await self.resolve_gatt_path(address_or_path, target)
+        _proxy_object, iface, _iface_name = await self._gatt_proxy(path)
+        await iface.call_write_value(value, {})
+        return path
+
+    async def notify_gatt(
+        self,
+        address_or_path: str,
+        target: str,
+        seconds: float | None,
+        queue: asyncio.Queue[GattNotification],
+    ) -> str:
+        path = await self.resolve_gatt_path(address_or_path, target)
+        proxy_object, characteristic, iface_name = await self._gatt_proxy(path)
+        if iface_name != GATT_CHARACTERISTIC_IFACE:
+            raise BlueZUnavailable("Notifications can only be started on GATT characteristics.")
+        properties = proxy_object.get_interface(PROPERTIES_IFACE)
+
+        def on_properties_changed(interface_name: str, changed: dict[str, Any], _invalidated: list[str]) -> None:
+            if interface_name != GATT_CHARACTERISTIC_IFACE or "Value" not in changed:
+                return
+            value = unwrap_variant(changed["Value"])
+            queue.put_nowait(GattNotification(path=path, value=bytes(value)))
+
+        properties.on_properties_changed(on_properties_changed)
+        await characteristic.call_start_notify()
+        try:
+            if seconds is None:
+                while True:
+                    await asyncio.sleep(3600)
+            else:
+                await asyncio.sleep(seconds)
+        finally:
+            try:
+                await characteristic.call_stop_notify()
+            except Exception:
+                pass
+
 
 def scan_blocking(seconds: float, *, hid_only: bool = True) -> list[DeviceRecord]:
     return asyncio.run(BlueZClient().scan(seconds, hid_only=hid_only))
@@ -130,3 +279,15 @@ def devices_blocking() -> list[DeviceRecord]:
 
 def pair_blocking(address_or_path: str, *, trust: bool = True, connect: bool = True) -> DeviceRecord:
     return asyncio.run(BlueZClient().pair(address_or_path, trust=trust, connect=connect))
+
+
+def gatt_objects_blocking(address_or_path: str) -> list[GattObject]:
+    return asyncio.run(BlueZClient().gatt_objects(address_or_path))
+
+
+def read_gatt_blocking(address_or_path: str, target: str) -> tuple[str, bytes]:
+    return asyncio.run(BlueZClient().read_gatt(address_or_path, target))
+
+
+def write_gatt_blocking(address_or_path: str, target: str, value: bytes) -> str:
+    return asyncio.run(BlueZClient().write_gatt(address_or_path, target, value))

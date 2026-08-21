@@ -11,11 +11,15 @@ def normalize_hex(value: str | int | None, width: int | None = None) -> str | No
     if value is None:
         return None
     if isinstance(value, int):
-        text = f"{value:x}"
+        number = value
     else:
         text = value.strip().lower()
         if text.startswith("0x"):
             text = text[2:]
+        if not text:
+            return None
+        number = int(text, 16)
+    text = f"{number:x}"
     if width is not None:
         text = text.zfill(width)
     return text

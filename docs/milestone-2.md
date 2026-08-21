@@ -7,6 +7,7 @@ The next milestone should turn verified raw reports into normal Linux input.
 - capture labeled button sessions for Remote #1 and Remote #2
 - attach definitive semantic labels to raw two-byte button values
 - discover stable GATT characteristic paths instead of relying on ATT handles
+- implement active GATT input setup, including notification subscription, MTU considerations, and the Siri Remote input-enable write observed in reference implementations
 - implement `AppleSiriRemote3` raw report decoding to normalized actions
 - implement a minimal uinput output backend
 - add a daemon loop that reconnects to trusted remotes and stays idle when no remote is active

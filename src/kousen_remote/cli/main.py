@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
+import time
 from pathlib import Path
 
 from kousen_remote.devices import find_hidraw_devices
-from kousen_remote.diagnostics import monitor_hidraw
-from kousen_remote.discovery.bluez import BlueZUnavailable, devices_blocking, pair_blocking, scan_blocking
+from kousen_remote.diagnostics import monitor_btmon, monitor_hidraw
+from kousen_remote.discovery.bluez import (
+    BlueZClient,
+    BlueZUnavailable,
+    devices_blocking,
+    gatt_objects_blocking,
+    pair_blocking,
+    read_gatt_blocking,
+    scan_blocking,
+    write_gatt_blocking,
+)
 from kousen_remote.discovery.scoring import rank_candidates
+from kousen_remote.drivers.apple_siri_remote_3 import classify_button_payload
 from kousen_remote.model import DeviceRecord
 from kousen_remote.profiles import DeviceProfile, load_profiles
 from kousen_remote.service.runtime import run_service
@@ -108,6 +120,129 @@ def cmd_pair(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gatt(args: argparse.Namespace) -> int:
+    try:
+        objects = gatt_objects_blocking(args.device)
+    except BlueZUnavailable as exc:
+        print(f"BlueZ GATT inspection unavailable: {exc}", file=sys.stderr)
+        return 2
+    if not objects:
+        print("No GATT objects found. Ensure the remote is connected.")
+        return 1
+    for item in objects:
+        print(f"{item.kind}: {item.path}")
+        print(f"  UUID: {item.uuid or '-'}")
+        if item.flags:
+            print(f"  Flags: {', '.join(item.flags)}")
+        if item.service:
+            print(f"  Service: {item.service}")
+        if item.characteristic:
+            print(f"  Characteristic: {item.characteristic}")
+        if item.notifying is not None:
+            print(f"  Notifying: {item.notifying}")
+    return 0
+
+
+def cmd_gatt_read(args: argparse.Namespace) -> int:
+    try:
+        path, value = read_gatt_blocking(args.device, args.target)
+    except BlueZUnavailable as exc:
+        print(f"BlueZ GATT read unavailable: {exc}", file=sys.stderr)
+        return 2
+    print(path)
+    print(value.hex(" "))
+    return 0
+
+
+def cmd_gatt_write(args: argparse.Namespace) -> int:
+    try:
+        value = bytes.fromhex(args.hex_value)
+    except ValueError:
+        print(f"Invalid hex value: {args.hex_value}", file=sys.stderr)
+        return 1
+    try:
+        path = write_gatt_blocking(args.device, args.target, value)
+    except BlueZUnavailable as exc:
+        print(f"BlueZ GATT write unavailable: {exc}", file=sys.stderr)
+        return 2
+    print(f"wrote {value.hex(' ')} to {path}")
+    return 0
+
+
+def _print_gatt_value(path: str, value: bytes) -> None:
+    classification = classify_button_payload(value)
+    if classification is None and len(value) > 2:
+        classification = classify_button_payload(value[-2:])
+    fields = [f"{time.time():.3f}", f"path={path}", f"raw={value.hex()}", f"len={len(value)}"]
+    if classification is not None:
+        fields.extend(
+            [
+                "type=button",
+                f"state={classification.state}",
+                f"known={str(classification.known_value).lower()}",
+                f'note="{classification.note}"',
+            ]
+        )
+        if classification.action is not None:
+            fields.append(f"action={classification.action.value}")
+    else:
+        fields.append("type=raw")
+    print(" ".join(fields), flush=True)
+
+
+async def _gatt_notify_async(args: argparse.Namespace) -> int:
+    client = BlueZClient()
+    for write_spec in args.write:
+        if "=" not in write_spec:
+            print(f"Invalid --write value, expected target=hex: {write_spec}", file=sys.stderr)
+            return 1
+        target, hex_value = write_spec.split("=", 1)
+        try:
+            value = bytes.fromhex(hex_value)
+        except ValueError:
+            print(f"Invalid --write hex value: {hex_value}", file=sys.stderr)
+            return 1
+        path = await client.write_gatt(args.device, target, value)
+        print(f"wrote {value.hex(' ')} to {path}")
+
+    queue = asyncio.Queue()
+    notify_task = asyncio.create_task(client.notify_gatt(args.device, args.target, args.timeout, queue))
+    print("monitoring GATT notifications")
+    try:
+        while True:
+            if notify_task.done():
+                await notify_task
+                return 0
+            try:
+                notification = await asyncio.wait_for(queue.get(), timeout=0.25)
+            except asyncio.TimeoutError:
+                continue
+            _print_gatt_value(notification.path, notification.value)
+    except KeyboardInterrupt:
+        print("stopped")
+        return 130
+    finally:
+        notify_task.cancel()
+        try:
+            await notify_task
+        except asyncio.CancelledError:
+            pass
+
+
+def cmd_gatt_notify(args: argparse.Namespace) -> int:
+    try:
+        return asyncio.run(_gatt_notify_async(args))
+    except KeyboardInterrupt:
+        print("stopped")
+        return 130
+    except BlueZUnavailable as exc:
+        print(f"BlueZ GATT notify unavailable: {exc}", file=sys.stderr)
+        return 2
+    except PermissionError:
+        print("Permission denied using BlueZ GATT. Try running this diagnostic with sudo.", file=sys.stderr)
+        return 13
+
+
 def cmd_hidraw(args: argparse.Namespace) -> int:
     devices = find_hidraw_devices(vendor_id=args.vendor_id, product_id=args.product_id)
     if not devices:
@@ -139,8 +274,27 @@ def cmd_test(args: argparse.Namespace) -> int:
         path = matches[0].dev_path
     try:
         return monitor_hidraw(path, output=sys.stdout, timeout=args.timeout)
+    except FileNotFoundError:
+        print(f"hidraw path does not exist: {path}. Use `kousen-remote hidraw` to list real paths.", file=sys.stderr)
+        return 1
     except PermissionError:
         print(f"Permission denied reading {path}. You may need udev permissions or sudo for diagnostics.", file=sys.stderr)
+        return 13
+
+
+def cmd_btmon_test(args: argparse.Namespace) -> int:
+    try:
+        return monitor_btmon(
+            output=sys.stdout,
+            timeout=args.timeout,
+            btmon_path=args.btmon,
+            buttons_only=args.buttons_only,
+        )
+    except FileNotFoundError:
+        print("btmon was not found. Install the BlueZ diagnostic tools package on Debian.", file=sys.stderr)
+        return 1
+    except PermissionError:
+        print("Permission denied running btmon. Run this command with sudo for diagnostics.", file=sys.stderr)
         return 13
 
 
@@ -177,6 +331,33 @@ def build_parser() -> argparse.ArgumentParser:
     pair.add_argument("--no-connect", action="store_true")
     pair.set_defaults(func=cmd_pair)
 
+    gatt = subparsers.add_parser("gatt", help="inspect BlueZ GATT services, characteristics, and descriptors")
+    gatt.add_argument("device", help="Bluetooth address or BlueZ object path")
+    gatt.set_defaults(func=cmd_gatt)
+
+    gatt_read = subparsers.add_parser("gatt-read", help="read a GATT characteristic or descriptor")
+    gatt_read.add_argument("device", help="Bluetooth address or BlueZ object path")
+    gatt_read.add_argument("target", help="full GATT object path or suffix such as char0038/desc003b")
+    gatt_read.set_defaults(func=cmd_gatt_read)
+
+    gatt_write = subparsers.add_parser("gatt-write", help="write hex bytes to a GATT characteristic")
+    gatt_write.add_argument("device", help="Bluetooth address or BlueZ object path")
+    gatt_write.add_argument("target", help="full GATT object path or suffix such as char004c")
+    gatt_write.add_argument("hex_value", help="hex bytes, for example af or 0100")
+    gatt_write.set_defaults(func=cmd_gatt_write)
+
+    gatt_notify = subparsers.add_parser("gatt-notify", help="actively subscribe to one GATT characteristic")
+    gatt_notify.add_argument("device", help="Bluetooth address or BlueZ object path")
+    gatt_notify.add_argument("target", help="full GATT characteristic path or suffix such as char0038")
+    gatt_notify.add_argument("--timeout", type=float)
+    gatt_notify.add_argument(
+        "--write",
+        action="append",
+        default=[],
+        help="write before subscribing, as target=hex; may be repeated",
+    )
+    gatt_notify.set_defaults(func=cmd_gatt_notify)
+
     hidraw = subparsers.add_parser("hidraw", help="inspect matching Linux hidraw devices")
     hidraw.add_argument("--vendor-id", default="004c")
     hidraw.add_argument("--product-id", default="0315")
@@ -188,6 +369,12 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--product-id", default="0315")
     test.add_argument("--timeout", type=float)
     test.set_defaults(func=cmd_test)
+
+    btmon_test = subparsers.add_parser("btmon-test", help="parse btmon ATT notifications for diagnostics")
+    btmon_test.add_argument("--timeout", type=float)
+    btmon_test.add_argument("--btmon", default="btmon", help="btmon executable path")
+    btmon_test.add_argument("--buttons-only", action="store_true", help="suppress touch/vendor diagnostic reports")
+    btmon_test.set_defaults(func=cmd_btmon_test)
 
     run = subparsers.add_parser("run", help="run the daemon runtime (planned for Milestone 2)")
     run.set_defaults(func=cmd_run)

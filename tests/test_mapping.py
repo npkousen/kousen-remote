@@ -20,6 +20,7 @@ class MappingTests(unittest.TestCase):
             "VOLUME_DOWN",
             "MUTE",
             "POWER",
+            "SIRI",
         }
 
         self.assertTrue(required.issubset({action.value for action in NormalizedAction}))

@@ -128,6 +128,24 @@ Inspect one device:
 kousen-remote info E0:C3:EA:A1:88:77
 ```
 
+Inspect paired-device GATT layout:
+
+```bash
+kousen-remote gatt E0:C3:EA:A1:88:77
+```
+
+Read HID report-reference descriptors:
+
+```bash
+kousen-remote gatt-read E0:C3:EA:A1:88:77 desc003b
+```
+
+Actively subscribe to a report characteristic:
+
+```bash
+kousen-remote gatt-notify E0:C3:EA:A1:88:77 char0038
+```
+
 Pair, trust, and connect:
 
 ```bash
@@ -148,6 +166,20 @@ kousen-remote test --hidraw /dev/hidrawN
 
 Reading `/dev/hidraw*` may require permissions or `sudo` depending on the host. Do not add udev rules until the exact rule is reviewed.
 
+If the Linux `hidraw` device is present but does not produce readable input reports, use the development-only `btmon` parser:
+
+```bash
+sudo ~/kousen-remote/.venv/bin/kousen-remote btmon-test
+```
+
+For labeled button capture, suppress touch traffic:
+
+```bash
+sudo ~/kousen-remote/.venv/bin/kousen-remote btmon-test --buttons-only
+```
+
+This is a diagnostic capture path, not the intended permanent runtime dependency.
+
 ## Remote #2 Clean-Room Checklist
 
 Use `scan`, `info`, `hidraw`, and `test` to answer:
@@ -161,6 +193,10 @@ Use `scan`, `info`, `hidraw`, and `test` to answer:
 7. Does touch activity produce an equivalent raw report stream?
 8. Can the same profile support both physical devices?
 9. Can both units remain paired independently?
+
+## Reference Repositories
+
+See [docs/reference-repos.md](docs/reference-repos.md) for notes on external Apple TV/Siri Remote projects and which parts are relevant to this Linux hardware-input service.
 
 ## Relationship To KousenTV And Kiosk Work
 

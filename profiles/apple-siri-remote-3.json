@@ -20,9 +20,39 @@
   "reports": {
     "buttons": {
       "observed_att_handle": "0x0039",
+      "bluez_gatt_characteristic_suffix": "char0038",
       "release": "0000",
-      "known_values": ["0100", "0200", "0400", "1000", "2000", "4000", "8000", "0001"],
-      "semantic_labels_status": "not established; do not map raw values to physical button labels without new labeled capture"
+      "known_values": [
+        "0001",
+        "0002",
+        "0004",
+        "0008",
+        "0010",
+        "0100",
+        "0200",
+        "0400",
+        "0800",
+        "1000",
+        "2000",
+        "4000",
+        "8000"
+      ],
+      "labeled_values": {
+        "0002": "NAV_UP",
+        "0008": "NAV_DOWN",
+        "0010": "NAV_LEFT",
+        "0004": "NAV_RIGHT",
+        "0800": "SELECT",
+        "4000": "BACK",
+        "0100": "HOME",
+        "0001": "PLAY_PAUSE",
+        "8000": "MUTE",
+        "0200": "VOLUME_UP",
+        "0400": "VOLUME_DOWN",
+        "1000": "POWER",
+        "2000": "SIRI"
+      },
+      "semantic_labels_status": "labeled from active GATT capture on Remote #1; validate with Remote #2 before treating as portable across units"
     },
     "touch": {
       "observed_att_handle": "0x003d",
