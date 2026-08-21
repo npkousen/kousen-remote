@@ -1,0 +1,25 @@
+# Milestone 2: raw reports to uinput
+
+The next milestone should turn verified raw reports into normal Linux input.
+
+## Goals
+
+- capture labeled button sessions for Remote #1 and Remote #2
+- attach definitive semantic labels to raw two-byte button values
+- discover stable GATT characteristic paths instead of relying on ATT handles
+- implement `AppleSiriRemote3` raw report decoding to normalized actions
+- implement a minimal uinput output backend
+- add a daemon loop that reconnects to trusted remotes and stays idle when no remote is active
+- add systemd unit files without installing them automatically
+- document required group/udev permissions for `/dev/uinput` and any diagnostic `hidraw` access
+
+## Non-goals
+
+- web management UI
+- Command Center integration
+- speculative gesture decoding
+- host suspend/wake automation
+
+## Validation
+
+Milestone 2 is complete when a paired supported remote can emit a small verified subset of normalized actions through uinput, and a normal application receives Linux key/media events without knowing about Apple Bluetooth reports.

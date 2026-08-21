@@ -1,0 +1,38 @@
+{
+  "id": "apple-siri-remote-3",
+  "name": "Apple Siri Remote (3rd Generation / USB-C)",
+  "match": {
+    "transport": "bluetooth-le",
+    "manufacturer_id": "004c",
+    "vendor_id": "004c",
+    "product_id": "0315",
+    "modalias": "bluetooth:v004Cp0315d0001",
+    "hid_service": "00001812-0000-1000-8000-00805f9b34fb",
+    "appearance": "03c0",
+    "weak_name_terms": ["siri remote", "apple tv remote"]
+  },
+  "features": {
+    "buttons": true,
+    "touchpad": true,
+    "gestures": true,
+    "battery": true
+  },
+  "reports": {
+    "buttons": {
+      "observed_att_handle": "0x0039",
+      "release": "0000",
+      "known_values": ["0100", "0200", "0400", "1000", "2000", "4000", "8000", "0001"],
+      "semantic_labels_status": "not established; do not map raw values to physical button labels without new labeled capture"
+    },
+    "touch": {
+      "observed_att_handle": "0x003d",
+      "observed_payload_length": 11,
+      "status": "capture confirmed; schema not decoded"
+    },
+    "vendor_large_report": {
+      "observed_att_handle": "0x0035",
+      "observed_payload_length": 99,
+      "status": "capture confirmed; purpose/schema not decoded"
+    }
+  }
+}

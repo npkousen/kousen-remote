@@ -1,0 +1,13 @@
+[Unit]
+Description=kousen-remote input service
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kousen-remote run
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
