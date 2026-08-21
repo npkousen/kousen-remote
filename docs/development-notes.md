@@ -97,6 +97,38 @@ That would require extending the mapping model beyond `action -> key_code` to su
 
 Any command-backed system actions should be explicit, allowlisted, and documented. Avoid a generic "run arbitrary shell command from config" feature.
 
+## Kousen control mapping
+
+Because the Kousen stack controls the kiosk service, Command Center, and KousenTV, it can use a dedicated high-function-key input contract instead of general browser/media defaults.
+
+Linux evdev standard function keys generally run through:
+
+```text
+KEY_F1 ... KEY_F24
+```
+
+There is no portable `KEY_F25`. For that reason, `mappings/kousen-control.json` uses `KEY_F13` through `KEY_F24` for twelve remappable controls and reserves Siri/Mic for `KEY_HOME`, which the kiosk can use as a safe global return-home action.
+
+This gives KousenTV and Command Center a clean app-level contract:
+
+```text
+UP         -> F13
+RIGHT      -> F14
+DOWN       -> F15
+LEFT       -> F16
+SELECT     -> F17
+BACK       -> F18
+HOME       -> F19
+PLAY_PAUSE -> F20
+MUTE       -> F21
+VOLUME_UP  -> F22
+VOLUME_DOWN-> F23
+POWER      -> F24
+SIRI       -> Home
+```
+
+This is appropriate for app remapping and shortcut interpretation. It should not replace the general `kiosk-browser` profile for non-Kousen applications unless those applications understand the high function keys.
+
 ## Touch and gesture roadmap
 
 Touch traffic is confirmed, but not decoded. The observed stream is:

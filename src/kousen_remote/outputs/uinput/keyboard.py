@@ -23,7 +23,7 @@ class PrintKeyOutput:
 
 
 class UInputKeyboard:
-    def __init__(self, *, name: str = "kousen-remote") -> None:
+    def __init__(self, *, name: str = "kousen-remote", key_codes: set[str] | None = None) -> None:
         try:
             from evdev import UInput, ecodes
         except ImportError as exc:
@@ -33,7 +33,7 @@ class UInputKeyboard:
             ) from exc
 
         self._ecodes = ecodes
-        self._known_keys = self._build_key_set()
+        self._known_keys = self._build_key_set(key_codes or set())
         capabilities = {ecodes.EV_KEY: sorted(self._known_keys)}
         try:
             self._device = UInput(capabilities, name=name)
@@ -42,7 +42,7 @@ class UInputKeyboard:
                 "permission denied opening /dev/uinput. Run with sudo for testing or add reviewed udev/group rules."
             ) from exc
 
-    def _build_key_set(self) -> set[int]:
+    def _build_key_set(self, configured_keys: set[str]) -> set[int]:
         key_names = {
             "KEY_UP",
             "KEY_DOWN",
@@ -59,6 +59,7 @@ class UInputKeyboard:
             "KEY_POWER",
             "KEY_F13",
         }
+        key_names.update(configured_keys)
         return {self._resolve_key(name) for name in key_names if hasattr(self._ecodes, name)}
 
     def _resolve_key(self, key_code: str) -> int:

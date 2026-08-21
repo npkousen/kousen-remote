@@ -1,0 +1,19 @@
+{
+  "name": "kousen-control",
+  "description": "Kousen stack mapping: Siri returns to kiosk home via KEY_HOME; the remaining 12 buttons use F13-F24 for app-level remapping.",
+  "actions_to_keys": {
+    "NAV_UP": "KEY_F13",
+    "NAV_RIGHT": "KEY_F14",
+    "NAV_DOWN": "KEY_F15",
+    "NAV_LEFT": "KEY_F16",
+    "SELECT": "KEY_F17",
+    "BACK": "KEY_F18",
+    "HOME": "KEY_F19",
+    "PLAY_PAUSE": "KEY_F20",
+    "MUTE": "KEY_F21",
+    "VOLUME_UP": "KEY_F22",
+    "VOLUME_DOWN": "KEY_F23",
+    "POWER": "KEY_F24",
+    "SIRI": "KEY_HOME"
+  }
+}

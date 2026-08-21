@@ -46,6 +46,17 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(mapping.key_for(NormalizedAction.VOLUME_UP), "KEY_VOLUMEUP")
         self.assertIsNone(mapping.key_for(NormalizedAction.POWER))
 
+    def test_checked_in_kousen_control_mapping_loads(self) -> None:
+        mapping = load_mapping(Path("mappings/kousen-control.json"))
+
+        self.assertEqual(mapping.key_for(NormalizedAction.NAV_UP), "KEY_F13")
+        self.assertEqual(mapping.key_for(NormalizedAction.NAV_RIGHT), "KEY_F14")
+        self.assertEqual(mapping.key_for(NormalizedAction.NAV_DOWN), "KEY_F15")
+        self.assertEqual(mapping.key_for(NormalizedAction.NAV_LEFT), "KEY_F16")
+        self.assertEqual(mapping.key_for(NormalizedAction.SELECT), "KEY_F17")
+        self.assertEqual(mapping.key_for(NormalizedAction.POWER), "KEY_F24")
+        self.assertEqual(mapping.key_for(NormalizedAction.SIRI), "KEY_HOME")
+
 
 if __name__ == "__main__":
     unittest.main()

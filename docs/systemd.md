@@ -28,6 +28,12 @@ From the repository root on the kiosk:
 sudo packaging/systemd/install-systemd.sh --device XX:XX:XX:XX:XX:XX
 ```
 
+Install with the Kousen high-function-key mapping:
+
+```bash
+sudo packaging/systemd/install-systemd.sh --device XX:XX:XX:XX:XX:XX --mapping kousen-control
+```
+
 Install but do not start immediately:
 
 ```bash

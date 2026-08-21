@@ -81,11 +81,12 @@ class ActionDispatcher:
         self.output.close()
 
 
-def create_output(name: str) -> KeyOutput:
+def create_output(name: str, mapping: MappingConfig | None = None) -> KeyOutput:
     if name == "print":
         return PrintKeyOutput()
     if name == "uinput":
-        return UInputKeyboard()
+        key_codes = set(mapping.actions_to_keys.values()) if mapping is not None else set()
+        return UInputKeyboard(key_codes=key_codes)
     raise ValueError(f"Unknown output: {name}")
 
 
@@ -130,7 +131,7 @@ async def _run_notification_session(
 
 async def run_service_async(config: RuntimeConfig) -> int:
     mapping = config.mapping or MappingConfig.default()
-    output = create_output(config.output)
+    output = create_output(config.output, mapping)
     dispatcher = ActionDispatcher(mapping=mapping, output=output)
     client = BlueZClient()
     deadline = time.monotonic() + config.timeout if config.timeout is not None else None

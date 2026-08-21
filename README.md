@@ -174,6 +174,12 @@ Install as a systemd service:
 sudo packaging/systemd/install-systemd.sh --device XX:XX:XX:XX:XX:XX
 ```
 
+Install with the Kousen app-remapping profile:
+
+```bash
+sudo packaging/systemd/install-systemd.sh --device XX:XX:XX:XX:XX:XX --mapping kousen-control
+```
+
 See [docs/systemd.md](docs/systemd.md) before running the installer; it lists the system paths and packages touched.
 
 Pair, trust, and connect:
@@ -259,6 +265,28 @@ SIRI          -> KEY_F13
 ```
 
 `POWER` is intentionally unmapped in the kiosk/browser profile because emitting `KEY_POWER` can trigger the host OS power-button behavior.
+
+Alternative Kousen stack mapping:
+
+`mappings/kousen-control.json` maps the Siri/Mic button to `KEY_HOME` so the kiosk can always return to `kousen.cc`. The remaining twelve buttons use high function keys for app-level remapping:
+
+```text
+NAV_UP        -> KEY_F13
+NAV_RIGHT     -> KEY_F14
+NAV_DOWN      -> KEY_F15
+NAV_LEFT      -> KEY_F16
+SELECT        -> KEY_F17
+BACK          -> KEY_F18
+HOME          -> KEY_F19
+PLAY_PAUSE    -> KEY_F20
+MUTE          -> KEY_F21
+VOLUME_UP     -> KEY_F22
+VOLUME_DOWN   -> KEY_F23
+POWER         -> KEY_F24
+SIRI          -> KEY_HOME
+```
+
+Linux evdev provides standard function keys through `KEY_F24`; `KEY_F25` is not portable.
 
 ## License
 

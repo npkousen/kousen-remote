@@ -25,6 +25,8 @@ class SystemdPackagingTests(unittest.TestCase):
         self.assertIn("/opt/kousen-remote", installer)
         self.assertIn("/etc/default/kousen-remote", installer)
         self.assertIn("/etc/systemd/system/kousen-remote.service", installer)
+        self.assertIn("--mapping", installer)
+        self.assertIn("mappings/${mapping}.json", installer)
 
 
 if __name__ == "__main__":

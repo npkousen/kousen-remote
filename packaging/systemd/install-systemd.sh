@@ -3,6 +3,7 @@ set -euo pipefail
 
 install_dir="/opt/kousen-remote"
 device=""
+mapping="kiosk-browser"
 start_service=1
 
 usage() {
@@ -12,6 +13,8 @@ Usage: sudo packaging/systemd/install-systemd.sh [options]
 Options:
   --device ADDRESS       Bluetooth address or BlueZ path for the paired remote.
   --install-dir PATH     Install directory. Default: /opt/kousen-remote
+  --mapping NAME|PATH    Mapping name from mappings/ or explicit JSON path.
+                         Default: kiosk-browser
   --no-start             Install and enable the service, but do not start it now.
   -h, --help             Show this help.
 
@@ -30,6 +33,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install-dir)
       install_dir="${2:?missing value for --install-dir}"
+      shift 2
+      ;;
+    --mapping)
+      mapping="${2:?missing value for --mapping}"
       shift 2
       ;;
     --no-start)
@@ -64,6 +71,7 @@ source_root="$(cd "${script_dir}/../.." && pwd)"
 echo "Installing kousen-remote from ${source_root}"
 echo "Install directory: ${install_dir}"
 echo "Remote device: ${device}"
+echo "Mapping: ${mapping}"
 
 apt-get update
 apt-get install -y python3-venv python3-pip python3-dbus-next python3-evdev bluez
@@ -80,11 +88,22 @@ tar \
 python3 -m venv --system-site-packages "${install_dir}/.venv"
 "${install_dir}/.venv/bin/python" -m pip install --no-deps -e "${install_dir}"
 
+if [[ "${mapping}" == */* ]]; then
+  mapping_path="${mapping}"
+else
+  mapping_path="${install_dir}/mappings/${mapping}.json"
+fi
+
+if [[ ! -f "${mapping_path}" ]]; then
+  echo "Mapping file not found: ${mapping_path}" >&2
+  exit 1
+fi
+
 install -m 0644 "${install_dir}/packaging/systemd/kousen-remote.service" /etc/systemd/system/kousen-remote.service
 install -m 0644 "${install_dir}/packaging/systemd/kousen-remote.default" /etc/default/kousen-remote
 
 escaped_device="$(printf '%s' "${device}" | sed 's/[&|]/\\&/g')"
-escaped_mapping="$(printf '%s' "${install_dir}/mappings/kiosk-browser.json" | sed 's/[&|]/\\&/g')"
+escaped_mapping="$(printf '%s' "${mapping_path}" | sed 's/[&|]/\\&/g')"
 escaped_bin="$(printf '%s' "${install_dir}/.venv/bin/kousen-remote" | sed 's/[&|]/\\&/g')"
 
 sed -i "s|^KOUSEN_REMOTE_DEVICE=.*|KOUSEN_REMOTE_DEVICE=${escaped_device}|" /etc/default/kousen-remote
