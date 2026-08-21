@@ -232,6 +232,10 @@ See [docs/reference-repos.md](docs/reference-repos.md) for notes on external App
 
 See [docs/development-notes.md](docs/development-notes.md) for lessons learned, button mappings, Power-button handling, touch/gesture roadmap, and future Command Center/KousenTV integration notes.
 
+## Public Pages
+
+This repo includes a public installation guide in `index.html` and a privacy policy in `privacy/index.html`. Both pages can be served directly by GitHub Pages from the repository root.
+
 ## Relationship To KousenTV And Kiosk Work
 
 `kousen-remote` should eventually run as its own lightweight service on the kiosk. KousenTV, Chromium, VLC, and other applications should see standard input events. Command Center may later manage pairing/testing/configuration, but it must not be required for remote input to function.
@@ -255,3 +259,7 @@ SIRI          -> KEY_F13
 ```
 
 `POWER` is intentionally unmapped in the kiosk/browser profile because emitting `KEY_POWER` can trigger the host OS power-button behavior.
+
+## License
+
+This project is open source under the MIT License. See `LICENSE` for details.

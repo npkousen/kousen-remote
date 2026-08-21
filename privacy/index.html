@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101418">
+  <title>Privacy Policy | Kousen Remote</title>
+  <link rel="icon" type="image/png" href="../assets/logo.png">
+  <link rel="apple-touch-icon" href="../assets/logo.png">
+  <meta property="og:title" content="Privacy Policy | Kousen Remote">
+  <meta property="og:description" content="Privacy details for the Kousen Remote Linux input service and public documentation site.">
+  <meta property="og:image" content="../assets/logo.png">
+  <meta property="og:type" content="website">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101418;
+      --panel: rgba(23, 29, 35, 0.92);
+      --panel-strong: rgba(8, 11, 14, 0.9);
+      --text: #eef4f8;
+      --muted: #a9b6c0;
+      --line: rgba(255, 255, 255, 0.1);
+      --blue: #5aa9ff;
+      --green: #62d28f;
+      --shadow: 0 18px 58px rgba(0, 0, 0, 0.28);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(180deg, #101418 0%, #121920 48%, #151b20 100%);
+      color: var(--text);
+      line-height: 1.62;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus-visible {
+      text-decoration: underline;
+    }
+
+    code {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 0.08rem 0.3rem;
+      color: #f8fbff;
+      font-size: 0.94em;
+    }
+
+    .shell {
+      width: min(920px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0;
+    }
+
+    .topbar,
+    .policy {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 18px;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex: 0 0 auto;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: clamp(1.2rem, 3vw, 1.65rem);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .home-link {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px;
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .home-link:focus-visible {
+      outline: 4px solid #ffffff;
+      outline-offset: 3px;
+    }
+
+    .policy {
+      padding: clamp(22px, 4vw, 38px);
+      border-radius: 0 0 8px 8px;
+    }
+
+    .eyebrow,
+    .meta {
+      color: var(--muted);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    p {
+      max-width: 74ch;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 30px 0 8px;
+      color: var(--text);
+      font-size: 1.08rem;
+      line-height: 1.25;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lede {
+      margin-top: 16px;
+      color: #dbe5f2;
+      font-size: 1.04rem;
+    }
+
+    .meta {
+      margin-top: 18px;
+      font-size: 0.92rem;
+    }
+
+    ul {
+      max-width: 74ch;
+      margin: 0 0 16px 22px;
+      padding: 0;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    .note {
+      max-width: 74ch;
+      margin-top: 22px;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100% - 24px, 920px);
+        padding: 12px 0;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .home-link {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Kousen Remote home">
+        <img class="brand-mark" src="../assets/logo.png" alt="">
+        <span class="brand-title">Kousen Remote</span>
+      </a>
+      <a class="home-link" href="../">Back Home</a>
+    </header>
+
+    <article class="policy">
+      <p class="eyebrow">Privacy Policy</p>
+      <h1>Kousen Remote keeps remote setup data on your own Linux device.</h1>
+      <p class="lede">
+        This policy applies to Kousen Remote, the open-source Linux input service and public documentation page published from this repository.
+      </p>
+      <p class="meta"><strong>Last updated:</strong> August 21, 2026</p>
+
+      <h2>1. Information The Project Handles</h2>
+      <p>
+        Kousen Remote may handle local setup details such as Bluetooth device addresses, BlueZ object paths, paired-device
+        metadata, GATT characteristic identifiers, action mappings, service configuration values, and local diagnostic logs.
+      </p>
+
+      <h2>2. Local Device Storage</h2>
+      <p>
+        The command-line tools and systemd installer write configuration and logs on the Linux device where Kousen Remote runs.
+        These can include the selected remote address, mapping path, reconnect settings, service status, and journal output.
+      </p>
+      <p>
+        This data stays on your device unless you choose to copy, back up, publish, or share it. Avoid committing private
+        Bluetooth addresses, hostnames, logs, SSH keys, tokens, or personal network notes to a public repository.
+      </p>
+
+      <h2>3. Bluetooth and Operating System Data</h2>
+      <p>
+        Pairing, trust, connection state, and Bluetooth credentials are managed by the host operating system and BlueZ.
+        Kousen Remote uses BlueZ through D-Bus but does not provide a hosted account system for storing Bluetooth pairing data.
+      </p>
+
+      <h2>4. No Kousen Remote Accounts or Backend</h2>
+      <p>
+        Kousen Remote does not require user accounts and does not include its own hosted backend database for collecting
+        remote-control setup information. The public documentation page does not receive, store, or manage your local
+        service configuration through the project itself.
+      </p>
+
+      <h2>5. Diagnostic Output</h2>
+      <p>
+        Diagnostic commands such as <code>scan</code>, <code>devices</code>, <code>info</code>, <code>gatt</code>, and
+        <code>gatt-notify</code> may display hardware identifiers, Bluetooth addresses, raw report values, timestamps,
+        and connection details in your terminal. Treat that output as local diagnostic information.
+      </p>
+
+      <h2>6. Kiosk, Browser, and App Links</h2>
+      <p>
+        Kousen Remote emits Linux input events. Apps that receive those events, such as Chromium, KousenTV, VLC, Plex,
+        CommandCenter, or third-party websites, may handle data according to their own privacy policies and browser behavior.
+      </p>
+
+      <h2>7. Hosting and Technical Logs</h2>
+      <p>
+        When the public documentation page is hosted, the hosting provider may process standard technical request data needed
+        to deliver the page, such as IP address, browser details, timestamps, requested paths, and basic server or CDN logs.
+      </p>
+
+      <h2>8. Cookies, Analytics, and Tracking</h2>
+      <p>
+        Kousen Remote does not intentionally include advertising trackers, analytics dashboards, or behavioral profiling tools.
+        Essential browser and hosting mechanisms may still be used to load static files securely and reliably.
+      </p>
+
+      <h2>9. Data Security</h2>
+      <p>
+        Because configuration and diagnostic data are generally stored on your own Linux device, protecting local admin access,
+        SSH access, systemd configuration, BlueZ pairing data, and terminal logs is important.
+      </p>
+
+      <h2>10. Children's Privacy</h2>
+      <p>
+        Kousen Remote is not directed to children under 13, and the public documentation page does not knowingly collect
+        personal information from children through Kousen Remote's local-first tools.
+      </p>
+
+      <h2>11. Changes to This Policy</h2>
+      <p>
+        This Privacy Policy may be updated from time to time. The revised version will be posted on this page with a new
+        "Last updated" date.
+      </p>
+
+      <h2>12. Contact</h2>
+      <p>If you have questions about this Privacy Policy, contact:</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:support@kousen.cc">support@kousen.cc</a></li>
+        <li><strong>Repository:</strong> <a href="https://github.com/npkousen/kousen-remote">https://github.com/npkousen/kousen-remote</a></li>
+      </ul>
+
+      <div class="note">
+        <strong>Plain-English summary:</strong> Kousen Remote is a local Linux service and static documentation page.
+        Remote pairing details, mappings, service settings, and diagnostics live on your own Linux device by default,
+        while public hosting may still create routine technical access logs.
+      </div>
+    </article>
+  </main>
+</body>
+</html>
