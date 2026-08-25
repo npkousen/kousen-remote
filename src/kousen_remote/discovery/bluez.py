@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from kousen_remote.model import HID_SERVICE_UUID, DeviceRecord, unwrap_variant
 
@@ -19,6 +19,9 @@ OBJECT_MANAGER_IFACE = "org.freedesktop.DBus.ObjectManager"
 
 class BlueZUnavailable(RuntimeError):
     pass
+
+
+ProgressCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -124,8 +127,29 @@ class BlueZClient:
                 return ref
         raise BlueZUnavailable(f"BlueZ device not found: {address_or_path}")
 
-    async def pair(self, address_or_path: str, *, trust: bool = True, connect: bool = True) -> DeviceRecord:
+    async def _run_operation(self, operation: str, fallback_command: str, coro: Any, timeout: float | None) -> Any:
+        try:
+            if timeout is None:
+                return await coro
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            raise BlueZUnavailable(
+                f"Timed out while {operation} after {timeout:g} seconds. "
+                f"Try the bluetoothctl fallback: bluetoothctl {fallback_command} <address>"
+            ) from exc
+
+    async def pair(
+        self,
+        address_or_path: str,
+        *,
+        trust: bool = True,
+        connect: bool = True,
+        timeout: float | None = 30.0,
+        progress: ProgressCallback | None = None,
+    ) -> DeviceRecord:
         _BusType, _MessageBus, Variant = _load_dbus_next()
+        if progress is not None:
+            progress(f"Finding BlueZ device {address_or_path}...")
         ref = await self.find_device(address_or_path)
         if self._bus is None:
             await self.connect()
@@ -135,14 +159,29 @@ class BlueZClient:
         props = device_object.get_interface(PROPERTIES_IFACE)
 
         if not ref.record.paired:
-            await device.call_pair()
+            if progress is not None:
+                progress(f"Pairing {address_or_path}...")
+            await self._run_operation("pairing", "pair", device.call_pair(), timeout)
+        elif progress is not None:
+            progress(f"{address_or_path} is already paired.")
         if trust:
-            await props.call_set(DEVICE_IFACE, "Trusted", Variant("b", True))
+            if progress is not None:
+                progress(f"Trusting {address_or_path}...")
+            await self._run_operation(
+                "trusting",
+                "trust",
+                props.call_set(DEVICE_IFACE, "Trusted", Variant("b", True)),
+                timeout,
+            )
         if connect:
-            await device.call_connect()
+            if progress is not None:
+                progress(f"Connecting {address_or_path}...")
+            await self._run_operation("connecting", "connect", device.call_connect(), timeout)
+        if progress is not None:
+            progress(f"Refreshing {address_or_path}...")
         return (await self.find_device(ref.path)).record
 
-    async def connect_device(self, address_or_path: str) -> DeviceRecord:
+    async def connect_device(self, address_or_path: str, *, timeout: float | None = 30.0) -> DeviceRecord:
         ref = await self.find_device(address_or_path)
         if ref.record.connected:
             return ref.record
@@ -152,7 +191,7 @@ class BlueZClient:
         device_object = self._bus.get_proxy_object(BLUEZ_SERVICE, ref.path, introspection)
         device = device_object.get_interface(DEVICE_IFACE)
         try:
-            await device.call_connect()
+            await self._run_operation("connecting", "connect", device.call_connect(), timeout)
         except Exception as exc:
             if "AlreadyConnected" not in str(exc):
                 raise BlueZUnavailable(f"Could not connect to {address_or_path}: {exc}") from exc
@@ -311,12 +350,21 @@ def devices_blocking(*, timeout: float = 8.0) -> list[DeviceRecord]:
     return [ref.record for ref in asyncio.run(_with_timeout(BlueZClient().devices(), timeout))]
 
 
-def pair_blocking(address_or_path: str, *, trust: bool = True, connect: bool = True) -> DeviceRecord:
-    return asyncio.run(BlueZClient().pair(address_or_path, trust=trust, connect=connect))
+def pair_blocking(
+    address_or_path: str,
+    *,
+    trust: bool = True,
+    connect: bool = True,
+    timeout: float | None = 30.0,
+    progress: ProgressCallback | None = None,
+) -> DeviceRecord:
+    return asyncio.run(
+        BlueZClient().pair(address_or_path, trust=trust, connect=connect, timeout=timeout, progress=progress)
+    )
 
 
-def connect_device_blocking(address_or_path: str) -> DeviceRecord:
-    return asyncio.run(BlueZClient().connect_device(address_or_path))
+def connect_device_blocking(address_or_path: str, *, timeout: float | None = 30.0) -> DeviceRecord:
+    return asyncio.run(BlueZClient().connect_device(address_or_path, timeout=timeout))
 
 
 def gatt_objects_blocking(address_or_path: str) -> list[GattObject]:

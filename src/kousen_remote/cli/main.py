@@ -165,10 +165,25 @@ def cmd_info(args: argparse.Namespace) -> int:
 
 
 def cmd_pair(args: argparse.Namespace) -> int:
+    def progress(message: str) -> None:
+        print(message, flush=True)
+
     try:
-        device = pair_blocking(args.device, trust=not args.no_trust, connect=not args.no_connect)
+        device = pair_blocking(
+            args.device,
+            trust=not args.no_trust,
+            connect=not args.no_connect,
+            timeout=args.timeout,
+            progress=progress,
+        )
     except BlueZUnavailable as exc:
         print(f"BlueZ pairing unavailable: {exc}", file=sys.stderr)
+        print("Manual bluetoothctl fallback:", file=sys.stderr)
+        print(f"  bluetoothctl pair {args.device}", file=sys.stderr)
+        if not args.no_trust:
+            print(f"  bluetoothctl trust {args.device}", file=sys.stderr)
+        if not args.no_connect:
+            print(f"  bluetoothctl connect {args.device}", file=sys.stderr)
         return 2
     _print_device(device)
     return 0
@@ -403,6 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pair = subparsers.add_parser("pair", help="pair, trust, and connect a BlueZ device")
     pair.add_argument("device", help="Bluetooth address or BlueZ object path")
+    pair.add_argument("--timeout", type=float, default=30.0, help="timeout for each pair/trust/connect operation")
     pair.add_argument("--no-trust", action="store_true")
     pair.add_argument("--no-connect", action="store_true")
     pair.set_defaults(func=cmd_pair)
