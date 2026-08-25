@@ -105,7 +105,7 @@ def parse_info(output: str, *, address: str | None = None) -> DeviceRecord:
             continue
 
         key, value = (part.strip() for part in line.split(":", 1))
-        key = key.lower()
+        key = key.lower().replace(".", " ")
         if key == "name":
             name = value
         elif key == "alias":
@@ -113,7 +113,7 @@ def parse_info(output: str, *, address: str | None = None) -> DeviceRecord:
         elif key in {"address type", "addresstype"}:
             address_type = value
         elif key == "appearance":
-            appearance = int(value, 16)
+            appearance = int(value.split()[0], 16)
         elif key == "modalias":
             modalias = value
         elif key == "rssi":
@@ -133,7 +133,7 @@ def parse_info(output: str, *, address: str | None = None) -> DeviceRecord:
             uuid_match = UUID_RE.search(value)
             uuids.append(normalize_uuid(uuid_match.group(1) if uuid_match else value))
         elif key == "manufacturerdata key":
-            current_manufacturer_key = int(value, 16)
+            current_manufacturer_key = int(value.split()[0], 16)
         elif key == "manufacturerdata value" and current_manufacturer_key is not None:
             parsed_value = parse_hex_bytes(value)
             if parsed_value is None:

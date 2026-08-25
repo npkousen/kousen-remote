@@ -21,15 +21,20 @@ SCAN_OUTPUT = """
 INFO_OUTPUT = """
 Device E0:C3:EA:A4:3E:05 (public)
     Alias: E0-C3-EA-A4-3E-05
-    Appearance: 0x03c0
+    Appearance: 0x03c0 (960)
     Paired: no
     Bonded: no
     Trusted: no
+    Blocked: no
     Connected: no
-    UUID: Human Interface Device (00001812-0000-1000-8000-00805f9b34fb)
-    ManufacturerData Key: 0x004c
-    ManufacturerData Value:
+    WakeAllowed: no
+    LegacyPairing: no
+    UUID: Human Interface Device    (00001812-0000-1000-8000-00805f9b34fb)
+    ManufacturerData.Key: 0x004c (76)
+    ManufacturerData.Value:
       07 0d 02 15 03 02 e0 c3 ea a4 3e 05 4d 4e 4e
+    AdvertisingFlags:
+      06
 """
 
 
