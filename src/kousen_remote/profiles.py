@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,7 @@ class DeviceProfile:
         if manufacturer_id is not None:
             expected = int(manufacturer_id, 16)
             if expected in device.manufacturer_ids:
-                score += 25
+                score += 35
                 matched.append(f"Apple manufacturer data 0x{manufacturer_id}")
             else:
                 missing.append(f"manufacturer data 0x{manufacturer_id}")
@@ -56,8 +57,8 @@ class DeviceProfile:
         if hid_service is not None:
             expected_uuid = normalize_uuid(hid_service)
             if expected_uuid in device.uuids:
-                score += 20
-                matched.append(f"HID service {expected_uuid}")
+                score += 30
+                matched.append(f"Bluetooth HID service {expected_uuid}")
             else:
                 missing.append(f"HID service {expected_uuid}")
 
@@ -65,42 +66,30 @@ class DeviceProfile:
         if appearance is not None:
             expected = int(appearance, 16)
             if device.appearance == expected:
-                score += 15
-                matched.append(f"appearance 0x{appearance}")
+                score += 20
+                matched.append(f"HID remote-control appearance 0x{appearance}")
             else:
                 missing.append(f"appearance 0x{appearance}")
 
         modalias = self.match.get("modalias")
+        matched_modalias = False
         if modalias is not None:
-            if device.modalias and device.modalias.lower() == str(modalias).lower():
+            if device.modalias and str(modalias).lower() in device.modalias.lower():
                 score += 50
-                matched.append(f"modalias {modalias}")
+                matched_modalias = True
+                matched.append(f"Bluetooth modalias {modalias}")
             else:
                 missing.append(f"modalias {modalias}")
 
         vendor_id = normalize_hex(self.match.get("vendor_id"), 4)
         product_id = normalize_hex(self.match.get("product_id"), 4)
         found_vendor, found_product = device.vendor_product_from_modalias
-        if vendor_id and product_id and found_vendor and found_product:
+        if vendor_id and product_id and found_vendor and found_product and not matched_modalias:
             if vendor_id == found_vendor and product_id == found_product:
                 score += 45
                 matched.append(f"vendor/product {vendor_id}:{product_id}")
             else:
                 missing.append(f"vendor/product {vendor_id}:{product_id}")
-
-        if device.address_type and device.address_type.lower() == "public":
-            score += 3
-            matched.append("public address")
-
-        if device.rssi is not None and device.rssi >= -60:
-            score += 5
-            matched.append(f"nearby RSSI {device.rssi} dBm")
-
-        weak_name_terms = tuple(str(term).lower() for term in self.match.get("weak_name_terms", ()))
-        haystack = f"{device.name or ''} {device.alias or ''}".lower()
-        if weak_name_terms and any(term in haystack for term in weak_name_terms):
-            score += 3
-            matched.append("weak name/alias hint")
 
         return ProfileMatch(self.id, score, tuple(matched), tuple(missing))
 
@@ -112,3 +101,12 @@ def load_profile(path: Path) -> DeviceProfile:
 
 def load_profiles(directory: Path) -> list[DeviceProfile]:
     return [load_profile(path) for path in sorted(directory.glob("*.json"))]
+
+
+def load_bundled_profiles() -> list[DeviceProfile]:
+    profile_dir = resources.files("kousen_remote.profile_data")
+    profiles: list[DeviceProfile] = []
+    for resource in sorted(profile_dir.iterdir(), key=lambda item: item.name):
+        if resource.name.endswith(".json"):
+            profiles.append(DeviceProfile.from_dict(json.loads(resource.read_text(encoding="utf-8"))))
+    return profiles

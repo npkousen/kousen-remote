@@ -1,0 +1,68 @@
+{
+  "id": "apple-siri-remote-3",
+  "name": "Apple Siri Remote (3rd Generation / USB-C)",
+  "match": {
+    "transport": "bluetooth-le",
+    "manufacturer_id": "004c",
+    "vendor_id": "004c",
+    "product_id": "0315",
+    "modalias": "bluetooth:v004Cp0315d0001",
+    "hid_service": "00001812-0000-1000-8000-00805f9b34fb",
+    "appearance": "03c0",
+    "weak_name_terms": ["siri remote", "apple tv remote"]
+  },
+  "features": {
+    "buttons": true,
+    "touchpad": true,
+    "gestures": true,
+    "battery": true
+  },
+  "reports": {
+    "buttons": {
+      "observed_att_handle": "0x0039",
+      "bluez_gatt_characteristic_suffix": "char0038",
+      "release": "0000",
+      "known_values": [
+        "0001",
+        "0002",
+        "0004",
+        "0008",
+        "0010",
+        "0100",
+        "0200",
+        "0400",
+        "0800",
+        "1000",
+        "2000",
+        "4000",
+        "8000"
+      ],
+      "labeled_values": {
+        "0002": "NAV_UP",
+        "0008": "NAV_DOWN",
+        "0010": "NAV_LEFT",
+        "0004": "NAV_RIGHT",
+        "0800": "SELECT",
+        "4000": "BACK",
+        "0100": "HOME",
+        "0001": "PLAY_PAUSE",
+        "8000": "MUTE",
+        "0200": "VOLUME_UP",
+        "0400": "VOLUME_DOWN",
+        "1000": "POWER",
+        "2000": "SIRI"
+      },
+      "semantic_labels_status": "labeled from active GATT capture on Remote #1; validate with Remote #2 before treating as portable across units"
+    },
+    "touch": {
+      "observed_att_handle": "0x003d",
+      "observed_payload_length": 11,
+      "status": "capture confirmed; schema not decoded"
+    },
+    "vendor_large_report": {
+      "observed_att_handle": "0x0035",
+      "observed_payload_length": 99,
+      "status": "capture confirmed; purpose/schema not decoded"
+    }
+  }
+}

@@ -110,7 +110,22 @@ python -m kousen_remote --help
 
 ## CLI Workflow
 
-Scan for likely compatible remotes:
+Find a Siri Remote before pairing with the more reliable `bluetoothctl` path:
+
+```bash
+kousen-remote find
+```
+
+This configures Bluetooth LE scanning for the HID service, collects `[NEW] Device` and `[CHG] Device` addresses, then runs `bluetoothctl info <address>` and scores the candidates. A strong pre-pairing match looks like:
+
+```text
+Likely Siri Remote candidate: E0:C3:EA:A4:3E:05 score=85
+Matched: Apple manufacturer data 0x004c; Bluetooth HID service 00001812-0000-1000-8000-00805f9b34fb; HID remote-control appearance 0x03c0
+```
+
+If no candidate appears, put the remote in pairing mode near the PC with Back/Menu + Volume Up for 5 seconds. If it still does not appear, restart the remote with TV/Control Center + Volume Down for 5 seconds, wait 10 seconds, then retry. Turn off Mac Bluetooth or unplug Apple TV if the remote is already paired elsewhere.
+
+Scan for likely compatible remotes through BlueZ D-Bus. If D-Bus hangs or times out, this falls back to the `bluetoothctl` discovery path:
 
 ```bash
 kousen-remote scan --seconds 10

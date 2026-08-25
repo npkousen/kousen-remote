@@ -39,3 +39,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 kousen_remote = ["py.typed"]
+"kousen_remote.profile_data" = ["*.json"]

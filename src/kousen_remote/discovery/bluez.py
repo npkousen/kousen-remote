@@ -111,7 +111,10 @@ class BlueZClient:
             await asyncio.sleep(seconds)
             refs = await self.devices()
         finally:
-            await adapter.call_stop_discovery()
+            try:
+                await asyncio.wait_for(adapter.call_stop_discovery(), timeout=3.0)
+            except Exception:
+                pass
         return [ref.record for ref in refs]
 
     async def find_device(self, address_or_path: str) -> BlueZDeviceRef:
@@ -292,12 +295,20 @@ class BlueZClient:
                     pass
 
 
-def scan_blocking(seconds: float, *, hid_only: bool = True) -> list[DeviceRecord]:
-    return asyncio.run(BlueZClient().scan(seconds, hid_only=hid_only))
+async def _with_timeout(coro: Any, timeout: float) -> Any:
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise BlueZUnavailable(f"BlueZ D-Bus call timed out after {timeout:g} seconds.") from exc
 
 
-def devices_blocking() -> list[DeviceRecord]:
-    return [ref.record for ref in asyncio.run(BlueZClient().devices())]
+def scan_blocking(seconds: float, *, hid_only: bool = True, timeout: float | None = None) -> list[DeviceRecord]:
+    scan_timeout = timeout if timeout is not None else max(seconds + 5.0, 10.0)
+    return asyncio.run(_with_timeout(BlueZClient().scan(seconds, hid_only=hid_only), scan_timeout))
+
+
+def devices_blocking(*, timeout: float = 8.0) -> list[DeviceRecord]:
+    return [ref.record for ref in asyncio.run(_with_timeout(BlueZClient().devices(), timeout))]
 
 
 def pair_blocking(address_or_path: str, *, trust: bool = True, connect: bool = True) -> DeviceRecord:

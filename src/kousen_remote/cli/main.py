@@ -18,11 +18,12 @@ from kousen_remote.discovery.bluez import (
     scan_blocking,
     write_gatt_blocking,
 )
+from kousen_remote.discovery.bluetoothctl import BluetoothCtlUnavailable, find_blocking as bluetoothctl_find_blocking
 from kousen_remote.discovery.scoring import rank_candidates
 from kousen_remote.drivers.apple_siri_remote_3 import classify_button_payload
 from kousen_remote.mapping import MappingConfig, load_mapping
 from kousen_remote.model import DeviceRecord
-from kousen_remote.profiles import DeviceProfile, load_profiles
+from kousen_remote.profiles import DeviceProfile, load_bundled_profiles, load_profiles
 from kousen_remote.service.runtime import DEFAULT_BUTTON_CHARACTERISTIC, RuntimeConfig, run_service
 
 
@@ -31,6 +32,8 @@ DEFAULT_PROFILE_DIR = Path("profiles")
 
 def _load_profiles_or_exit(path: Path) -> list[DeviceProfile]:
     profiles = load_profiles(path)
+    if not profiles and path == DEFAULT_PROFILE_DIR:
+        profiles = load_bundled_profiles()
     if not profiles:
         raise SystemExit(f"No device profiles found in {path}")
     return profiles
@@ -74,13 +77,47 @@ def _print_candidates(devices: list[DeviceRecord], profiles: list[DeviceProfile]
                 print(f"    - {reason}")
 
 
+def _print_pairing_help() -> None:
+    print("Put Siri Remote in pairing mode near this PC: Back/Menu + Volume Up for 5 seconds.")
+    print("If still nothing, restart remote: TV/Control Center + Volume Down for 5 seconds, wait 10 seconds, then retry.")
+    print("Turn off Mac Bluetooth / unplug Apple TV if already paired elsewhere.")
+
+
+def _print_find_results(devices: list[DeviceRecord], profiles: list[DeviceProfile], *, include_low_score: bool) -> bool:
+    candidates = rank_candidates(devices, profiles, include_low_score=include_low_score)
+    if not candidates:
+        print("No Siri Remote candidate found.")
+        _print_pairing_help()
+        return False
+    for candidate in candidates:
+        address = candidate.device.address or candidate.device.display_name
+        print(f"Likely Siri Remote candidate: {address} score={candidate.match.score}")
+        print(f"Matched: {'; '.join(candidate.match.matched or ('none',))}")
+        if candidate.match.missing:
+            print(f"Not yet observed: {'; '.join(candidate.match.missing)}")
+    return True
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     profiles = _load_profiles_or_exit(args.profiles)
     try:
-        devices = scan_blocking(args.seconds, hid_only=not args.no_hid_filter)
+        devices = scan_blocking(args.seconds, hid_only=not args.no_hid_filter, timeout=args.timeout)
     except BlueZUnavailable as exc:
-        print(f"BlueZ scan unavailable: {exc}", file=sys.stderr)
-        return 2
+        if args.no_bluetoothctl_fallback:
+            print(f"BlueZ scan unavailable: {exc}", file=sys.stderr)
+            return 2
+        print(f"BlueZ D-Bus scan unavailable, falling back to bluetoothctl: {exc}", file=sys.stderr)
+        try:
+            result = bluetoothctl_find_blocking(
+                args.seconds,
+                hid_only=not args.no_hid_filter,
+                bluetoothctl_path=args.bluetoothctl,
+                info_timeout=args.info_timeout,
+            )
+        except BluetoothCtlUnavailable as fallback_exc:
+            print(f"bluetoothctl scan unavailable: {fallback_exc}", file=sys.stderr)
+            return 2
+        devices = result.devices
     _print_candidates(devices, profiles, include_low_score=args.all)
     return 0
 
@@ -88,7 +125,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 def cmd_devices(args: argparse.Namespace) -> int:
     profiles = _load_profiles_or_exit(args.profiles)
     try:
-        devices = devices_blocking()
+        devices = devices_blocking(timeout=args.timeout)
     except BlueZUnavailable as exc:
         print(f"BlueZ devices unavailable: {exc}", file=sys.stderr)
         return 2
@@ -96,9 +133,25 @@ def cmd_devices(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_find(args: argparse.Namespace) -> int:
+    profiles = _load_profiles_or_exit(args.profiles)
+    try:
+        result = bluetoothctl_find_blocking(
+            args.seconds,
+            hid_only=not args.no_hid_filter,
+            bluetoothctl_path=args.bluetoothctl,
+            info_timeout=args.info_timeout,
+        )
+    except BluetoothCtlUnavailable as exc:
+        print(f"bluetoothctl discovery unavailable: {exc}", file=sys.stderr)
+        _print_pairing_help()
+        return 2
+    return 0 if _print_find_results(result.devices, profiles, include_low_score=args.all) else 1
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     try:
-        devices = devices_blocking()
+        devices = devices_blocking(timeout=args.timeout)
     except BlueZUnavailable as exc:
         print(f"BlueZ info unavailable: {exc}", file=sys.stderr)
         return 2
@@ -322,16 +375,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = subparsers.add_parser("scan", help="scan for plausible compatible remotes")
     scan.add_argument("--seconds", type=float, default=8.0)
+    scan.add_argument("--timeout", type=float, help="outer timeout for the BlueZ D-Bus scan")
     scan.add_argument("--all", action="store_true", help="show low-scoring devices too")
     scan.add_argument("--no-hid-filter", action="store_true", help="do not ask BlueZ to filter by HID UUID")
+    scan.add_argument("--no-bluetoothctl-fallback", action="store_true", help="do not fall back when D-Bus scanning fails")
+    scan.add_argument("--bluetoothctl", default="bluetoothctl", help="bluetoothctl executable path")
+    scan.add_argument("--info-timeout", type=float, default=5.0, help="timeout for each bluetoothctl info call")
     scan.set_defaults(func=cmd_scan)
 
+    find = subparsers.add_parser("find", help="find likely Siri Remote devices with bluetoothctl")
+    find.add_argument("--seconds", type=float, default=30.0)
+    find.add_argument("--all", action="store_true", help="show low-scoring devices too")
+    find.add_argument("--no-hid-filter", action="store_true", help="do not configure the BLE HID UUID scan filter")
+    find.add_argument("--bluetoothctl", default="bluetoothctl", help="bluetoothctl executable path")
+    find.add_argument("--info-timeout", type=float, default=5.0, help="timeout for each bluetoothctl info call")
+    find.set_defaults(func=cmd_find)
+
     devices = subparsers.add_parser("devices", help="list known BlueZ devices and candidate scores")
+    devices.add_argument("--timeout", type=float, default=8.0, help="outer timeout for BlueZ D-Bus device listing")
     devices.add_argument("--all", action="store_true", help="show low-scoring devices too")
     devices.set_defaults(func=cmd_devices)
 
     info = subparsers.add_parser("info", help="show BlueZ metadata for one device")
     info.add_argument("device", help="Bluetooth address or BlueZ object path")
+    info.add_argument("--timeout", type=float, default=8.0, help="outer timeout for BlueZ D-Bus device listing")
     info.set_defaults(func=cmd_info)
 
     pair = subparsers.add_parser("pair", help="pair, trust, and connect a BlueZ device")

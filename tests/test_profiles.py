@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from kousen_remote.model import HID_SERVICE_UUID, DeviceRecord
-from kousen_remote.profiles import load_profile
+from kousen_remote.profiles import load_bundled_profiles, load_profile
 
 
 PROFILE = Path("profiles/apple-siri-remote-3.json")
@@ -47,7 +47,8 @@ class ProfileMatchingTests(unittest.TestCase):
 
         self.assertTrue(match.plausible)
         self.assertGreaterEqual(match.score, 100)
-        self.assertIn("vendor/product 004c:0315", match.matched)
+        self.assertIn("Bluetooth modalias bluetooth:v004Cp0315d0001", match.matched)
+        self.assertNotIn("vendor/product 004c:0315", match.matched)
         self.assertNotIn("AA:BB:CC:DD:EE:FF", " ".join(match.matched))
 
     def test_advertisement_only_candidate_is_plausible(self) -> None:
@@ -78,6 +79,11 @@ class ProfileMatchingTests(unittest.TestCase):
         match = profile.score(device)
 
         self.assertFalse(match.plausible)
+
+    def test_bundled_profiles_are_available_for_installed_cli_defaults(self) -> None:
+        profiles = load_bundled_profiles()
+
+        self.assertTrue(any(profile.id == "apple-siri-remote-3" for profile in profiles))
 
 
 if __name__ == "__main__":
