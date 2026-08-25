@@ -179,11 +179,16 @@ def cmd_pair(args: argparse.Namespace) -> int:
     except BlueZUnavailable as exc:
         print(f"BlueZ pairing unavailable: {exc}", file=sys.stderr)
         print("Manual bluetoothctl fallback:", file=sys.stderr)
+        print("  bluetoothctl", file=sys.stderr)
+        print("  agent on", file=sys.stderr)
+        print("  default-agent", file=sys.stderr)
         print(f"  bluetoothctl pair {args.device}", file=sys.stderr)
         if not args.no_trust:
             print(f"  bluetoothctl trust {args.device}", file=sys.stderr)
         if not args.no_connect:
             print(f"  bluetoothctl connect {args.device}", file=sys.stderr)
+        print("Put Siri Remote in pairing mode near this PC: Back/Menu + Volume Up for 5 seconds.", file=sys.stderr)
+        print(f"If authentication fails again, run `bluetoothctl remove {args.device}`, then retry pairing.", file=sys.stderr)
         return 2
     _print_device(device)
     return 0

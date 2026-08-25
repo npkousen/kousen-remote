@@ -137,6 +137,11 @@ class BlueZClient:
                 f"Timed out while {operation} after {timeout:g} seconds. "
                 f"Try the bluetoothctl fallback: bluetoothctl {fallback_command} <address>"
             ) from exc
+        except Exception as exc:
+            raise BlueZUnavailable(
+                f"BlueZ failed while {operation}: {exc}. "
+                f"Try the bluetoothctl fallback: bluetoothctl {fallback_command} <address>"
+            ) from exc
 
     async def pair(
         self,
