@@ -55,6 +55,21 @@ class BluetoothCtlParsingTests(unittest.TestCase):
         self.assertFalse(device.paired)
         self.assertFalse(device.connected)
 
+    def test_parses_real_bluez_dotted_manufacturer_data_fields(self) -> None:
+        device = parse_info(
+            """
+Device E0:C3:EA:A4:3E:05 (public)
+    ManufacturerData.Key: 0x004c (76)
+    ManufacturerData.Value:
+      07 0d 02 15 03 02 e0 c3 ea a4 3e 05 4d 4e 4e
+"""
+        )
+
+        self.assertEqual(
+            device.manufacturer_data,
+            {0x004C: bytes.fromhex("07 0d 02 15 03 02 e0 c3 ea a4 3e 05 4d 4e 4e")},
+        )
+
     def test_sample_signature_scores_85_without_modalias(self) -> None:
         device = parse_info(INFO_OUTPUT)
         profile = load_bundled_profiles()[0]
