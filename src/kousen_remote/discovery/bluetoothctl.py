@@ -7,7 +7,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from shutil import which
-from typing import BinaryIO
+from typing import BinaryIO, Callable
 
 from kousen_remote.model import HID_SERVICE_UUID, DeviceRecord, normalize_uuid
 
@@ -25,6 +25,12 @@ class BluetoothCtlUnavailable(RuntimeError):
 @dataclass(frozen=True)
 class BluetoothCtlScanResult:
     devices: list[DeviceRecord]
+    raw_output: str
+
+
+@dataclass(frozen=True)
+class BluetoothCtlPairResult:
+    device: DeviceRecord
     raw_output: str
 
 
@@ -185,6 +191,25 @@ def _write_command(stdin: BinaryIO | None, command: str) -> None:
         raise BluetoothCtlUnavailable("bluetoothctl exited before discovery commands could complete.") from exc
 
 
+def _tail(output: str, *, limit: int = 1200) -> str:
+    return output[-limit:].strip()
+
+
+def _read_available(stdout_fd: int) -> bytes:
+    chunks: list[bytes] = []
+    while True:
+        try:
+            chunk = os.read(stdout_fd, 4096)
+        except BlockingIOError:
+            break
+        if not chunk:
+            break
+        chunks.append(chunk)
+        if len(chunk) < 4096:
+            break
+    return b"".join(chunks)
+
+
 def scan_addresses(
     seconds: float,
     *,
@@ -226,10 +251,7 @@ def scan_addresses(
                 break
             ready, _write_ready, _error_ready = select.select([process.stdout], [], [], 0.25)
             if ready:
-                try:
-                    chunk = os.read(stdout_fd, 4096)
-                except BlockingIOError:
-                    continue
+                chunk = _read_available(stdout_fd)
                 if not chunk:
                     break
                 output.append(chunk)
@@ -294,6 +316,135 @@ def known_addresses(*, bluetoothctl_path: str = "bluetoothctl", timeout: float =
     if result.returncode != 0:
         raise BluetoothCtlUnavailable(f"bluetoothctl devices failed: {output.strip()}")
     return listed_addresses(output)
+
+
+def _wait_for_bluetoothctl_result(
+    process: subprocess.Popen[bytes],
+    stdout_fd: int,
+    *,
+    deadline: float,
+    output: list[bytes],
+    success_patterns: tuple[str, ...],
+    failure_patterns: tuple[str, ...],
+) -> None:
+    decoded = b"".join(output).decode("utf-8", errors="replace")
+    yes_responses = decoded.lower().count("yes/no")
+    while time.monotonic() < deadline:
+        if process.stdout is None:
+            break
+        ready, _write_ready, _error_ready = select.select([process.stdout], [], [], 0.25)
+        if ready:
+            chunk = _read_available(stdout_fd)
+            if chunk:
+                output.append(chunk)
+        decoded = b"".join(output).decode("utf-8", errors="replace")
+        lowered = decoded.lower()
+        prompt_count = lowered.count("yes/no")
+        while yes_responses < prompt_count:
+            _write_command(process.stdin, "yes")
+            yes_responses += 1
+        if any(pattern.lower() in lowered for pattern in success_patterns):
+            return
+        for pattern in failure_patterns:
+            if pattern.lower() in lowered:
+                raise BluetoothCtlUnavailable(f"bluetoothctl failed: {pattern}. Output: {_tail(decoded)}")
+        if process.poll() is not None:
+            break
+    decoded = b"".join(output).decode("utf-8", errors="replace")
+    raise BluetoothCtlUnavailable(f"bluetoothctl timed out waiting for result. Output: {_tail(decoded)}")
+
+
+def pair_blocking(
+    address: str,
+    *,
+    trust: bool = True,
+    connect: bool = True,
+    timeout: float = 60.0,
+    bluetoothctl_path: str = "bluetoothctl",
+    progress: Callable[[str], None] | None = None,
+) -> BluetoothCtlPairResult:
+    if which(bluetoothctl_path) is None:
+        raise BluetoothCtlUnavailable("bluetoothctl was not found. Install the BlueZ command-line tools.")
+
+    try:
+        process = subprocess.Popen(
+            [bluetoothctl_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError as exc:
+        raise BluetoothCtlUnavailable(f"Could not start bluetoothctl: {exc}") from exc
+
+    output: list[bytes] = []
+    try:
+        if process.stdout is None:
+            raise BluetoothCtlUnavailable("bluetoothctl stdout is unavailable.")
+        stdout_fd = process.stdout.fileno()
+        os.set_blocking(stdout_fd, False)
+
+        setup_commands = ("power on", "agent on", "default-agent", "pairable on")
+        for command in setup_commands:
+            _write_command(process.stdin, command)
+
+        if progress is not None:
+            progress(f"Pairing {address} with bluetoothctl...")
+        _write_command(process.stdin, f"pair {address}")
+        _wait_for_bluetoothctl_result(
+            process,
+            stdout_fd,
+            deadline=time.monotonic() + timeout,
+            output=output,
+            success_patterns=("Pairing successful", "paired: yes"),
+            failure_patterns=("Failed to pair", "Authentication Failed", "AuthenticationFailed"),
+        )
+
+        if trust:
+            if progress is not None:
+                progress(f"Trusting {address} with bluetoothctl...")
+            _write_command(process.stdin, f"trust {address}")
+            _wait_for_bluetoothctl_result(
+                process,
+                stdout_fd,
+                deadline=time.monotonic() + timeout,
+                output=output,
+                success_patterns=("trust succeeded", "Changing trust succeeded"),
+                failure_patterns=("Failed to trust",),
+            )
+
+        if connect:
+            if progress is not None:
+                progress(f"Connecting {address} with bluetoothctl...")
+            _write_command(process.stdin, f"connect {address}")
+            _wait_for_bluetoothctl_result(
+                process,
+                stdout_fd,
+                deadline=time.monotonic() + timeout,
+                output=output,
+                success_patterns=("Connection successful", "Connected: yes"),
+                failure_patterns=("Failed to connect",),
+            )
+
+        os.set_blocking(stdout_fd, True)
+        _write_command(process.stdin, "quit")
+        try:
+            remaining, _stderr = process.communicate(timeout=3)
+            if remaining:
+                output.append(remaining)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            remaining, _stderr = process.communicate()
+            if remaining:
+                output.append(remaining)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+
+    return BluetoothCtlPairResult(
+        device=info(address, bluetoothctl_path=bluetoothctl_path, timeout=min(timeout, 10.0)),
+        raw_output=b"".join(output).decode("utf-8", errors="replace"),
+    )
 
 
 def find_blocking(

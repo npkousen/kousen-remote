@@ -18,7 +18,11 @@ from kousen_remote.discovery.bluez import (
     scan_blocking,
     write_gatt_blocking,
 )
-from kousen_remote.discovery.bluetoothctl import BluetoothCtlUnavailable, find_blocking as bluetoothctl_find_blocking
+from kousen_remote.discovery.bluetoothctl import (
+    BluetoothCtlUnavailable,
+    find_blocking as bluetoothctl_find_blocking,
+    pair_blocking as bluetoothctl_pair_blocking,
+)
 from kousen_remote.discovery.scoring import rank_candidates
 from kousen_remote.drivers.apple_siri_remote_3 import classify_button_payload
 from kousen_remote.mapping import MappingConfig, load_mapping
@@ -168,30 +172,57 @@ def cmd_pair(args: argparse.Namespace) -> int:
     def progress(message: str) -> None:
         print(message, flush=True)
 
+    dbus_error: BlueZUnavailable | None = None
+    if args.backend in {"auto", "dbus"}:
+        try:
+            device = pair_blocking(
+                args.device,
+                trust=not args.no_trust,
+                connect=not args.no_connect,
+                timeout=args.timeout,
+                progress=progress,
+            )
+            _print_device(device)
+            return 0
+        except BlueZUnavailable as exc:
+            dbus_error = exc
+            print(f"BlueZ D-Bus pairing unavailable: {exc}", file=sys.stderr)
+            if args.backend == "dbus" or args.no_bluetoothctl_fallback:
+                _print_pair_fallback(args)
+                return 2
+
     try:
-        device = pair_blocking(
+        if dbus_error is not None:
+            print("Trying bluetoothctl pairing fallback...", flush=True)
+        result = bluetoothctl_pair_blocking(
             args.device,
             trust=not args.no_trust,
             connect=not args.no_connect,
             timeout=args.timeout,
+            bluetoothctl_path=args.bluetoothctl,
             progress=progress,
         )
-    except BlueZUnavailable as exc:
-        print(f"BlueZ pairing unavailable: {exc}", file=sys.stderr)
-        print("Manual bluetoothctl fallback:", file=sys.stderr)
-        print("  bluetoothctl", file=sys.stderr)
-        print("  agent on", file=sys.stderr)
-        print("  default-agent", file=sys.stderr)
-        print(f"  bluetoothctl pair {args.device}", file=sys.stderr)
-        if not args.no_trust:
-            print(f"  bluetoothctl trust {args.device}", file=sys.stderr)
-        if not args.no_connect:
-            print(f"  bluetoothctl connect {args.device}", file=sys.stderr)
-        print("Put Siri Remote in pairing mode near this PC: Back/Menu + Volume Up for 5 seconds.", file=sys.stderr)
-        print(f"If authentication fails again, run `bluetoothctl remove {args.device}`, then retry pairing.", file=sys.stderr)
+        device = result.device
+    except BluetoothCtlUnavailable as exc:
+        print(f"bluetoothctl pairing unavailable: {exc}", file=sys.stderr)
+        _print_pair_fallback(args)
         return 2
     _print_device(device)
     return 0
+
+
+def _print_pair_fallback(args: argparse.Namespace) -> None:
+    print("Manual bluetoothctl fallback:", file=sys.stderr)
+    print("  bluetoothctl", file=sys.stderr)
+    print("  agent on", file=sys.stderr)
+    print("  default-agent", file=sys.stderr)
+    print(f"  pair {args.device}", file=sys.stderr)
+    if not args.no_trust:
+        print(f"  trust {args.device}", file=sys.stderr)
+    if not args.no_connect:
+        print(f"  connect {args.device}", file=sys.stderr)
+    print("Put Siri Remote in pairing mode near this PC: Back/Menu + Volume Up for 5 seconds.", file=sys.stderr)
+    print(f"If authentication fails again, run `bluetoothctl remove {args.device}`, then retry pairing.", file=sys.stderr)
 
 
 def cmd_gatt(args: argparse.Namespace) -> int:
@@ -424,6 +455,9 @@ def build_parser() -> argparse.ArgumentParser:
     pair = subparsers.add_parser("pair", help="pair, trust, and connect a BlueZ device")
     pair.add_argument("device", help="Bluetooth address or BlueZ object path")
     pair.add_argument("--timeout", type=float, default=30.0, help="timeout for each pair/trust/connect operation")
+    pair.add_argument("--backend", choices=["auto", "dbus", "bluetoothctl"], default="auto")
+    pair.add_argument("--bluetoothctl", default="bluetoothctl", help="bluetoothctl executable path")
+    pair.add_argument("--no-bluetoothctl-fallback", action="store_true", help="do not fall back when D-Bus pairing fails")
     pair.add_argument("--no-trust", action="store_true")
     pair.add_argument("--no-connect", action="store_true")
     pair.set_defaults(func=cmd_pair)

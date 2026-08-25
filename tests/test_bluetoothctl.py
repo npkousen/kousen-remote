@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kousen_remote.discovery.bluetoothctl import discovered_addresses, find_blocking, listed_addresses, parse_info
+from kousen_remote.discovery.bluetoothctl import discovered_addresses, find_blocking, listed_addresses, pair_blocking, parse_info
 from kousen_remote.model import HID_SERVICE_UUID
 from kousen_remote.profiles import load_bundled_profiles
 
@@ -155,6 +155,40 @@ for raw_line in sys.stdin.buffer:
         self.assertEqual(len(result.devices), 1)
         match = load_bundled_profiles()[0].score(result.devices[0])
         self.assertEqual(match.score, 85)
+
+    def test_pair_blocking_runs_bluetoothctl_agent_pair_trust_connect(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_bluetoothctl = Path(tmp_dir) / "bluetoothctl"
+            fake_bluetoothctl.write_text(
+                f"""#!{sys.executable}
+import sys
+
+if len(sys.argv) > 1 and sys.argv[1] == "info":
+    print({INFO_OUTPUT!r})
+    raise SystemExit(0)
+
+for raw_line in sys.stdin.buffer:
+    command = raw_line.decode("utf-8").strip()
+    if command == "pair E0:C3:EA:A4:3E:05":
+        print("Pairing successful", flush=True)
+    elif command == "trust E0:C3:EA:A4:3E:05":
+        print("Changing E0:C3:EA:A4:3E:05 trust succeeded", flush=True)
+    elif command == "connect E0:C3:EA:A4:3E:05":
+        print("Connection successful", flush=True)
+    elif command == "quit":
+        break
+""",
+                encoding="utf-8",
+            )
+            os.chmod(fake_bluetoothctl, 0o755)
+
+            result = pair_blocking(
+                "E0:C3:EA:A4:3E:05",
+                timeout=2.0,
+                bluetoothctl_path=str(fake_bluetoothctl),
+            )
+
+        self.assertEqual(result.device.address, "E0:C3:EA:A4:3E:05")
 
 
 if __name__ == "__main__":
