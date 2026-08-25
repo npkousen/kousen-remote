@@ -75,10 +75,14 @@ def parse_info(output: str, *, address: str | None = None) -> DeviceRecord:
         return None
 
     def parse_hex_bytes(value: str) -> bytes | None:
-        parts = value.strip().split()
-        if not parts or any(not re.fullmatch(r"[0-9a-fA-F]{2}", part) for part in parts):
+        hex_parts: list[str] = []
+        for part in value.strip().split():
+            if not re.fullmatch(r"[0-9a-fA-F]{2}", part):
+                break
+            hex_parts.append(part)
+        if not hex_parts:
             return None
-        return bytes(int(part, 16) for part in parts)
+        return bytes(int(part, 16) for part in hex_parts)
 
     for raw_line in output.splitlines():
         line = _clean_line(raw_line)
