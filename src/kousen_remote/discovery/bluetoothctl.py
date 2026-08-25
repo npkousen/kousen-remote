@@ -48,6 +48,19 @@ def discovered_addresses(output: str) -> list[str]:
     return addresses
 
 
+def listed_addresses(output: str) -> list[str]:
+    addresses: list[str] = []
+    seen: set[str] = set()
+    for line in output.splitlines():
+        match = DEVICE_INFO_RE.search(_clean_line(line))
+        if match is not None:
+            address = match.group(1).upper()
+            if address not in seen:
+                seen.add(address)
+                addresses.append(address)
+    return addresses
+
+
 def parse_info(output: str, *, address: str | None = None) -> DeviceRecord:
     manufacturer_data: dict[int, bytes] = {}
     uuids: list[str] = []
@@ -264,6 +277,25 @@ def info(address: str, *, bluetoothctl_path: str = "bluetoothctl", timeout: floa
     return parse_info(output, address=address)
 
 
+def known_addresses(*, bluetoothctl_path: str = "bluetoothctl", timeout: float = 5.0) -> list[str]:
+    if which(bluetoothctl_path) is None:
+        raise BluetoothCtlUnavailable("bluetoothctl was not found. Install the BlueZ command-line tools.")
+    try:
+        result = subprocess.run(
+            [bluetoothctl_path, "devices"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise BluetoothCtlUnavailable(f"bluetoothctl devices timed out after {timeout:g} seconds.") from exc
+    output = result.stdout + result.stderr
+    if result.returncode != 0:
+        raise BluetoothCtlUnavailable(f"bluetoothctl devices failed: {output.strip()}")
+    return listed_addresses(output)
+
+
 def find_blocking(
     seconds: float,
     *,
@@ -272,6 +304,13 @@ def find_blocking(
     info_timeout: float = 5.0,
 ) -> BluetoothCtlScanResult:
     addresses, raw_output = scan_addresses(seconds, hid_only=hid_only, bluetoothctl_path=bluetoothctl_path)
+    try:
+        known = known_addresses(bluetoothctl_path=bluetoothctl_path, timeout=info_timeout)
+    except BluetoothCtlUnavailable:
+        known = []
+    for address in known:
+        if address not in addresses:
+            addresses.append(address)
     devices: list[DeviceRecord] = []
     for address in addresses:
         try:

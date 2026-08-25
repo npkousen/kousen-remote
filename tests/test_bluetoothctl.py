@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kousen_remote.discovery.bluetoothctl import discovered_addresses, find_blocking, parse_info
+from kousen_remote.discovery.bluetoothctl import discovered_addresses, find_blocking, listed_addresses, parse_info
 from kousen_remote.model import HID_SERVICE_UUID
 from kousen_remote.profiles import load_bundled_profiles
 
@@ -41,6 +41,14 @@ Device E0:C3:EA:A4:3E:05 (public)
 class BluetoothCtlParsingTests(unittest.TestCase):
     def test_discovers_unique_new_and_changed_device_addresses(self) -> None:
         self.assertEqual(discovered_addresses(SCAN_OUTPUT), ["AA:AA:AA:AA:AA:AA", "E0:C3:EA:A4:3E:05"])
+
+    def test_lists_known_bluetoothctl_device_addresses(self) -> None:
+        output = """
+Device 11:22:33:44:55:66 Keyboard
+Device E0:C3:EA:A4:3E:05 E0-C3-EA-A4-3E-05
+"""
+
+        self.assertEqual(listed_addresses(output), ["11:22:33:44:55:66", "E0:C3:EA:A4:3E:05"])
 
     def test_parses_siri_remote_info_signature(self) -> None:
         device = parse_info(INFO_OUTPUT)
@@ -96,6 +104,8 @@ import sys
 if len(sys.argv) > 1 and sys.argv[1] == "info":
     print({INFO_OUTPUT!r})
     raise SystemExit(0)
+if len(sys.argv) > 1 and sys.argv[1] == "devices":
+    raise SystemExit(0)
 
 for raw_line in sys.stdin.buffer:
     command = raw_line.decode("utf-8").strip()
@@ -116,6 +126,35 @@ for raw_line in sys.stdin.buffer:
             result.devices[0].manufacturer_data[0x004C],
             bytes.fromhex("07 0d 02 15 03 02 e0 c3 ea a4 3e 05 4d 4e 4e"),
         )
+
+    def test_find_blocking_scores_known_device_when_scan_has_no_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_bluetoothctl = Path(tmp_dir) / "bluetoothctl"
+            fake_bluetoothctl.write_text(
+                f"""#!{sys.executable}
+import sys
+
+if len(sys.argv) > 1 and sys.argv[1] == "info":
+    print({INFO_OUTPUT!r})
+    raise SystemExit(0)
+if len(sys.argv) > 1 and sys.argv[1] == "devices":
+    print("Device E0:C3:EA:A4:3E:05 E0-C3-EA-A4-3E-05")
+    raise SystemExit(0)
+
+for raw_line in sys.stdin.buffer:
+    command = raw_line.decode("utf-8").strip()
+    if command == "quit":
+        break
+""",
+                encoding="utf-8",
+            )
+            os.chmod(fake_bluetoothctl, 0o755)
+
+            result = find_blocking(0.2, bluetoothctl_path=str(fake_bluetoothctl))
+
+        self.assertEqual(len(result.devices), 1)
+        match = load_bundled_profiles()[0].score(result.devices[0])
+        self.assertEqual(match.score, 85)
 
 
 if __name__ == "__main__":
